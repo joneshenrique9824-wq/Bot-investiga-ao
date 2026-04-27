@@ -9,249 +9,206 @@ import {
   TextInputBuilder,
   TextInputStyle,
   EmbedBuilder,
+  SlashCommandBuilder,
   REST,
   Routes,
-  SlashCommandBuilder,
   ChannelType,
   PermissionsBitField
 } from "discord.js";
 
-if (!process.env.TOKEN) throw new Error("TOKEN não definido");
-if (!process.env.CLIENT_ID) throw new Error("CLIENT_ID não definido");
-if (!process.env.GUILD_ID) throw new Error("GUILD_ID não definido");
-if (!process.env.CARGO_JUIZ) throw new Error("CARGO_JUIZ não definido");
+import { Low } from "lowdb";
+import { JSONFile } from "lowdb/node";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// =========================
+// 💾 DATABASE (RAILWAY SAFE)
+// =========================
+const adapter = new JSONFile("db.json");
+const db = new Low(adapter, { processos: [] });
 
-let processoCount = 0;
-const audiencias = new Map();
+await db.read();
+db.data ||= { processos: [] };
 
-// 📌 COMANDO
+// =========================
+// BOT
+// =========================
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
+let contador = 0;
+
+// =========================
+// SLASH COMMAND
+// =========================
 const commands = [
   new SlashCommandBuilder()
     .setName("painel-investigacao")
-    .setDescription("Abrir painel judicial")
+    .setDescription("Abrir tribunal RP")
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-(async () => {
-  await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-    { body: commands }
-  );
-})();
+await rest.put(
+  Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+  { body: commands }
+);
 
+// =========================
+// READY
+// =========================
 client.once("ready", () => {
-  console.log(`✅ ${client.user.tag} online`);
+  console.log(`⚖️ Tribunal online: ${client.user.tag}`);
 });
 
-// 📜 LOG
+// =========================
+// LOG SYSTEM
+// =========================
 async function log(guild, msg) {
-  let channel = guild.channels.cache.find(c => c.name === "📜-logs-investigacao");
+  let ch = guild.channels.cache.find(c => c.name === "📜-logs");
 
-  if (!channel) {
-    channel = await guild.channels.create({
-      name: "📜-logs-investigacao",
+  if (!ch) {
+    ch = await guild.channels.create({
+      name: "📜-logs",
       type: ChannelType.GuildText
     });
   }
 
-  channel.send(msg);
+  ch.send(msg);
 }
 
-// 🎮 INTERAÇÕES
+// =========================
+// INTERAÇÕES
+// =========================
 client.on("interactionCreate", async (interaction) => {
 
-  try {
-
-    // =========================
-    // 📌 PAINEL
-    // =========================
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "painel-investigacao") {
-
-        const embed = new EmbedBuilder()
-          .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO")
-          .setColor("Gold")
-          .setDescription(`
-🏛️ SISTEMA JUDICIAL ATIVO
-
-✔ Processo com canal aberto  
-✔ Prova obrigatória (enviada no chat)  
-✔ Juiz responsável pelo julgamento  
-
-⏳ Fluxo:
-1 Registro  
-2 Investigação  
-3 Julgamento  
-          `);
-
-        const btn = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId("abrir_form")
-            .setLabel("Abrir Processo")
-            .setStyle(ButtonStyle.Primary)
-        );
-
-        return interaction.reply({ embeds: [embed], components: [btn] });
-      }
-    }
-
-    // =========================
-    // 🔘 ABRIR MODAL
-    // =========================
-    if (interaction.isButton() && interaction.customId === "abrir_form") {
-
-      const modal = new ModalBuilder()
-        .setCustomId("form_investigacao")
-        .setTitle("Novo Processo Judicial");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("nome")
-            .setLabel("Nome do solicitante")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("id")
-            .setLabel("ID do solicitante")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("alvo")
-            .setLabel("Nome do alvo")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("alvo_id")
-            .setLabel("ID do alvo")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("motivo")
-            .setLabel("Motivo detalhado")
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(true)
-        )
-      );
-
-      return interaction.showModal(modal);
-    }
-
-    // =========================
-    // 📂 CRIA PROCESSO
-    // =========================
-    if (interaction.isModalSubmit()) {
-
-      await interaction.deferReply({ ephemeral: true });
-
-      const id = `#${String(++processoCount).padStart(4, "0")}`;
-
-      const nome = interaction.fields.getTextInputValue("nome");
-      const uid = interaction.fields.getTextInputValue("id");
-      const alvo = interaction.fields.getTextInputValue("alvo");
-      const alvo_id = interaction.fields.getTextInputValue("alvo_id");
-      const motivo = interaction.fields.getTextInputValue("motivo");
-
-      let cat = interaction.guild.channels.cache.find(c => c.name === "📂 INVESTIGAÇÕES");
-
-      if (!cat) {
-        cat = await interaction.guild.channels.create({
-          name: "📂 INVESTIGAÇÕES",
-          type: ChannelType.GuildCategory
-        });
-      }
-
-      const canal = await interaction.guild.channels.create({
-        name: `📂-${id}`,
-        type: ChannelType.GuildText,
-        parent: cat.id,
-        permissionOverwrites: [
-          { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-          { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] },
-          { id: process.env.CARGO_JUIZ, allow: [PermissionsBitField.Flags.ViewChannel] }
-        ]
-      });
+  // 📌 PAINEL
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "painel-investigacao") {
 
       const embed = new EmbedBuilder()
-        .setTitle(`📂 PROCESSO ${id}`)
-        .setColor("Yellow")
-        .addFields(
-          { name: "👤 Solicitante", value: `${nome} (${uid})` },
-          { name: "🎯 Alvo", value: `${alvo} (${alvo_id})` },
-          { name: "📄 Motivo", value: motivo },
-          { name: "📜 Status", value: "🟡 Em análise" }
-        );
+        .setTitle("🏛️ TRIBUNAL RP - SISTEMA JUDICIAL")
+        .setColor("Gold")
+        .setDescription(`
+✔ Processos oficiais
+✔ Provas obrigatórias
+✔ Audiência controlada
+✔ Julgamento formal
 
-      const buttons = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aprovar").setLabel("Aprovar").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("negar").setLabel("Negar").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("encerrar").setLabel("Encerrar").setStyle(ButtonStyle.Secondary)
+Clique abaixo para iniciar processo.
+        `);
+
+      const btn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("abrir_form")
+          .setLabel("Criar Processo")
+          .setStyle(ButtonStyle.Primary)
       );
 
-      await canal.send({ embeds: [embed], components: [buttons] });
+      return interaction.reply({ embeds: [embed], components: [btn] });
+    }
+  }
 
-      // 🔥 PROVA AGORA NO CHAT (NÃO NO MODAL)
-      await canal.send("📎 Envie aqui a PROVA INICIAL do caso.");
+  // =========================
+  // FORM
+  // =========================
+  if (interaction.isButton() && interaction.customId === "abrir_form") {
 
-      await log(interaction.guild, `📂 Processo ${id} criado`);
+    const modal = new ModalBuilder()
+      .setCustomId("form")
+      .setTitle("Novo Processo");
 
-      return interaction.editReply({
-        content: `✔ Processo criado: ${canal}`
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId("solicitante").setLabel("Solicitante").setStyle(1)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId("alvo").setLabel("Alvo").setStyle(1)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(2)
+      )
+    );
+
+    return interaction.showModal(modal);
+  }
+
+  // =========================
+  // CRIAR PROCESSO
+  // =========================
+  if (interaction.isModalSubmit()) {
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const id = `#${String(++contador).padStart(4, "0")}`;
+
+    const solicitante = interaction.fields.getTextInputValue("solicitante");
+    const alvo = interaction.fields.getTextInputValue("alvo");
+    const motivo = interaction.fields.getTextInputValue("motivo");
+
+    // salvar DB
+    db.data.processos.push({
+      id,
+      solicitante,
+      alvo,
+      motivo,
+      status: "ABERTO",
+      logs: []
+    });
+
+    await db.write();
+
+    let cat = interaction.guild.channels.cache.find(c => c.name === "📂-tribunal");
+
+    if (!cat) {
+      cat = await interaction.guild.channels.create({
+        name: "📂-tribunal",
+        type: ChannelType.GuildCategory
       });
     }
 
-    // =========================
-    // ⚖️ DECISÕES
-    // =========================
-    if (interaction.isButton()) {
+    const canal = await interaction.guild.channels.create({
+      name: `processo-${id}`,
+      type: ChannelType.GuildText,
+      parent: cat.id
+    });
 
-      const embed = EmbedBuilder.from(interaction.message.embeds?.[0] || {});
+    const embed = new EmbedBuilder()
+      .setTitle(`📂 PROCESSO ${id}`)
+      .setColor("Yellow")
+      .addFields(
+        { name: "Solicitante", value: solicitante },
+        { name: "Alvo", value: alvo },
+        { name: "Motivo", value: motivo },
+        { name: "Status", value: "🟡 ABERTO" }
+      );
 
-      if (interaction.customId === "aprovar") {
-        if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return interaction.reply({ content: "❌ Sem permissão", flags: 64 });
+    const btns = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("prova").setLabel("Enviar Prova").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("fechar").setLabel("Encerrar").setStyle(ButtonStyle.Danger)
+    );
 
-        embed.setColor("Green");
-        await log(interaction.guild, "🟢 Processo aprovado");
+    await canal.send({ embeds: [embed], components: [btns] });
 
-        return interaction.update({ embeds: [embed], components: [] });
-      }
+    await log(interaction.guild, `📂 Processo ${id} criado`);
 
-      if (interaction.customId === "negar") {
-        if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return interaction.reply({ content: "❌ Sem permissão", flags: 64 });
+    return interaction.editReply({ content: `✔ Criado: ${canal}` });
+  }
 
-        embed.setColor("Red");
-        await log(interaction.guild, "🔴 Processo negado");
+  // =========================
+  // PROVA
+  // =========================
+  if (interaction.isButton()) {
 
-        return interaction.update({ embeds: [embed], components: [] });
-      }
-
-      if (interaction.customId === "encerrar") {
-        embed.setColor("Grey");
-        await log(interaction.guild, "⚫ Processo encerrado");
-
-        return interaction.update({ embeds: [embed], components: [] });
-      }
+    if (interaction.customId === "prova") {
+      return interaction.reply({
+        content: "📎 Envie sua prova neste canal (imagem ou texto).",
+        flags: 64
+      });
     }
 
-  } catch (err) {
-    console.error("Erro geral:", err);
-
-    if (!interaction.replied) {
+    if (interaction.customId === "fechar") {
       return interaction.reply({
-        content: "❌ erro no sistema",
+        content: "⚖️ Processo encerrado pelo juiz.",
         flags: 64
       });
     }

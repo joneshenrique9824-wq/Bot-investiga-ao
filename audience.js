@@ -5,38 +5,40 @@ import {
   ActionRowBuilder
 } from "discord.js";
 
-const audiencias = new Map();
-const defesas = new Map();
-
-export async function iniciarAudiencia(interaction) {
-  audiencias.set(interaction.channel.id, {
-    juiz: interaction.user.id,
-    ativo: true
-  });
-
-  await interaction.channel.send("⚖️ AUDIÊNCIA INICIADA");
-
-  return interaction.reply({ content: "✔ Audiência iniciada", flags: 64 });
-}
+const aud = new Map();
 
 export async function handleAudience(interaction) {
 
-  // ⚖️ INICIAR
+  // ⚖️ INICIAR AUDIÊNCIA
   if (interaction.isButton() && interaction.customId === "aud_inicio") {
-    return iniciarAudiencia(interaction);
+
+    aud.set(interaction.channel.id, {
+      juiz: interaction.user.id
+    });
+
+    return interaction.reply({
+      content: "⚖️ Audiência iniciada pelo juiz.",
+      flags: 64
+    });
   }
 
   // 👨‍💼 ADVOGADO
   if (interaction.isButton() && interaction.customId === "advogado") {
-    return interaction.reply({ content: "👨‍💼 Advogado registrado", flags: 64 });
+    return interaction.reply({
+      content: "👨‍💼 Advogado registrado no caso.",
+      flags: 64
+    });
   }
 
   // 👮 ACUSAÇÃO
   if (interaction.isButton() && interaction.customId === "acusacao") {
-    return interaction.reply({ content: "👮 Acusação registrada", flags: 64 });
+    return interaction.reply({
+      content: "👮 Acusação registrada no caso.",
+      flags: 64
+    });
   }
 
-  // 📜 DEFESA
+  // 📜 DEFESA (ESCRITA)
   if (interaction.isButton() && interaction.customId === "defesa") {
 
     const modal = new ModalBuilder()
@@ -47,7 +49,7 @@ export async function handleAudience(interaction) {
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId("texto")
-          .setLabel("Defesa completa")
+          .setLabel("Escreva a defesa completa")
           .setStyle(TextInputStyle.Paragraph)
       )
     );
@@ -59,14 +61,10 @@ export async function handleAudience(interaction) {
 
     const texto = interaction.fields.getTextInputValue("texto");
 
-    defesas.set(interaction.channel.id, texto);
-
-    await interaction.channel.send(
-      `📜 **DEFESA:**\n\n${texto}`
-    );
+    await interaction.channel.send(`📜 **DEFESA DO ADVOGADO:**\n\n${texto}`);
 
     return interaction.reply({
-      content: "✔ Defesa registrada",
+      content: "✔ Defesa registrada com sucesso",
       flags: 64
     });
   }
@@ -74,10 +72,9 @@ export async function handleAudience(interaction) {
   // 🔒 ENCERRAR
   if (interaction.isButton() && interaction.customId === "encerrar") {
 
-    audiencias.delete(interaction.channel.id);
-
-    await interaction.channel.send("🔒 Processo encerrado");
-
-    return interaction.reply({ content: "✔ Encerrado", flags: 64 });
+    return interaction.reply({
+      content: "🔒 Processo encerrado pelo juiz.",
+      flags: 64
+    });
   }
 }

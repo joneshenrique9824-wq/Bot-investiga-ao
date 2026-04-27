@@ -1,4 +1,3 @@
-import "dotenv/config";
 import {
   Client,
   GatewayIntentBits,
@@ -14,13 +13,24 @@ import {
   SlashCommandBuilder
 } from "discord.js";
 
-// 🔒 VALIDAÇÃO ENV
-if (!process.env.TOKEN) throw new Error("❌ TOKEN não definido");
-if (!process.env.CLIENT_ID) throw new Error("❌ CLIENT_ID não definido");
-if (!process.env.GUILD_ID) throw new Error("❌ GUILD_ID não definido");
-if (!process.env.CANAL_ANALISE) throw new Error("❌ CANAL_ANALISE não definido");
-if (!process.env.CARGO_JUIZ) throw new Error("❌ CARGO_JUIZ não definido");
+// 🔒 CONFIG (Railway usa ENV do painel)
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
+const CANAL_ANALISE = process.env.CANAL_ANALISE;
+const CARGO_JUIZ = process.env.CARGO_JUIZ;
 
+// 🔍 DEBUG
+console.log("TOKEN:", TOKEN ? "OK" : "NÃO DEFINIDO");
+
+// 🚨 VALIDAÇÃO
+if (!TOKEN) throw new Error("❌ TOKEN não definido");
+if (!CLIENT_ID) throw new Error("❌ CLIENT_ID não definido");
+if (!GUILD_ID) throw new Error("❌ GUILD_ID não definido");
+if (!CANAL_ANALISE) throw new Error("❌ CANAL_ANALISE não definido");
+if (!CARGO_JUIZ) throw new Error("❌ CARGO_JUIZ não definido");
+
+// 🤖 CLIENT
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
@@ -33,24 +43,24 @@ const commands = [
 ];
 
 // 📡 REGISTRAR COMANDO
-const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
   try {
     console.log("🔄 Registrando comandos...");
     await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
     console.log("✅ Comandos registrados!");
   } catch (err) {
-    console.error("❌ Erro ao registrar comandos:", err);
+    console.error("❌ ERRO REST:", err);
   }
 })();
 
-// 🚀 BOT ONLINE
+// 🚀 ONLINE
 client.once("ready", () => {
-  console.log(`✅ Bot online: ${client.user.tag}`);
+  console.log(`✅ Online como ${client.user.tag}`);
 });
 
 // 🎮 INTERAÇÕES
@@ -104,14 +114,14 @@ client.on("interactionCreate", async (interaction) => {
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("motivo")
-            .setLabel("Motivo")
+            .setLabel("Motivo da Investigação")
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("provas")
-            .setLabel("Provas")
+            .setLabel("Provas Iniciais")
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         )
@@ -123,8 +133,8 @@ client.on("interactionCreate", async (interaction) => {
     // APROVAR / NEGAR
     if (interaction.customId.startsWith("aprovar_") || interaction.customId.startsWith("negar_")) {
 
-      if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ)) {
-        return interaction.reply({ content: "❌ Sem permissão", ephemeral: true });
+      if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
+        return interaction.reply({ content: "❌ Você não é juiz!", ephemeral: true });
       }
 
       const aprovado = interaction.customId.startsWith("aprovar_");
@@ -133,7 +143,7 @@ client.on("interactionCreate", async (interaction) => {
         .setColor(aprovado ? "Green" : "Red")
         .addFields({
           name: "🔨 Decisão",
-          value: aprovado ? "Autorizado ✅" : "Negado ❌"
+          value: aprovado ? "Autorização Deferida ✅" : "Autorização Indeferida ❌"
         });
 
       await interaction.update({ embeds: [embed], components: [] });
@@ -143,7 +153,7 @@ client.on("interactionCreate", async (interaction) => {
   // FORMULÁRIO
   if (interaction.isModalSubmit()) {
 
-    const canal = await client.channels.fetch(process.env.CANAL_ANALISE).catch(() => null);
+    const canal = await client.channels.fetch(CANAL_ANALISE).catch(() => null);
 
     if (!canal) {
       return interaction.reply({
@@ -153,7 +163,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     const embed = new EmbedBuilder()
-      .setTitle("📂 Nova Investigação")
+      .setTitle("📂 NOVA SOLICITAÇÃO DE INVESTIGAÇÃO")
       .setColor("Orange")
       .addFields(
         { name: "👤 Solicitante", value: interaction.fields.getTextInputValue("nome") },
@@ -183,4 +193,5 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-client.login(process.env.TOKEN);
+// 🔑 LOGIN
+client.login(TOKEN);

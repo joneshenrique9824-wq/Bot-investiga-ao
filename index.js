@@ -16,24 +16,13 @@ import {
   PermissionsBitField
 } from "discord.js";
 
-import { Low } from "lowdb";
-import { JSONFile } from "lowdb/node";
-
-// =====================
-// 💾 DATABASE (RAILWAY SAFE)
-// =====================
-const db = new Low(new JSONFile("db.json"), { processos: [] });
-await db.read();
-db.data ||= { processos: [] };
-
-// =====================
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-let contador = 0;
+let processoCount = 0;
 const audiencias = new Map();
 
 // =====================
-// SLASH COMMAND
+// COMANDO
 // =====================
 const commands = [
   new SlashCommandBuilder()
@@ -48,25 +37,12 @@ await rest.put(
   { body: commands }
 );
 
+// =====================
+// READY
+// =====================
 client.once("ready", () => {
   console.log(`⚖️ Tribunal online: ${client.user.tag}`);
 });
-
-// =====================
-// LOG SYSTEM
-// =====================
-async function log(guild, msg) {
-  let ch = guild.channels.cache.find(c => c.name === "📜-logs");
-
-  if (!ch) {
-    ch = await guild.channels.create({
-      name: "📜-logs",
-      type: ChannelType.GuildText
-    });
-  }
-
-  ch.send(msg);
-}
 
 // =====================
 // INTERAÇÕES
@@ -86,44 +62,33 @@ client.on("interactionCreate", async (interaction) => {
           .setColor("Gold")
           .setDescription(`
 👨‍⚖️ AUTORIDADE JUDICIAL:
-Nenhuma investigação poderá ser iniciada sem a devida autorização do Juiz responsável.
+Nenhuma investigação pode ser iniciada sem autorização.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-📌 SOLICITAÇÃO:
-
-✔ Identificação do solicitante  
-✔ Identificação do alvo  
-✔ Motivo detalhado  
-✔ Provas iniciais obrigatórias  
-
-━━━━━━━━━━━━━━━━━━━━━━
-
-⏳ PROCESSO:
-
-1 Registro automático  
-2 Análise do Juiz  
-3 Verificação de provas  
-4 Decisão final  
+📌 REQUISITOS:
+✔ Solicitante  
+✔ Alvo  
+✔ Motivo  
+✔ Provas  
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-⚖️ DECISÃO:
-
-• Autorizado → investigação liberada  
-• Negado → caso arquivado  
+⚖️ FLUXO:
+1 Registro  
+2 Análise  
+3 Audiência  
+4 Sentença  
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-👨‍⚖️ Juiz: Nakamura Ofc  
-🏛️ Tribunal RP  
-⚖️ Sistema ativo
+🏛️ Tribunal RP ativo
           `);
 
         const btn = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId("abrir_form")
-            .setLabel("Abrir Processo")
+            .setLabel("📂 Criar Processo")
             .setStyle(ButtonStyle.Primary)
         );
 
@@ -132,9 +97,14 @@ Nenhuma investigação poderá ser iniciada sem a devida autorização do Juiz r
     }
 
     // =====================
-    // 📂 MODAL ABRIR
+    // 📂 ABRIR MODAL
     // =====================
     if (interaction.isButton() && interaction.customId === "abrir_form") {
+
+      await interaction.reply({
+        content: "📂 Abrindo formulário de processo...",
+        flags: 64
+      });
 
       const modal = new ModalBuilder()
         .setCustomId("form")
@@ -160,24 +130,13 @@ Nenhuma investigação poderá ser iniciada sem a devida autorização do Juiz r
     // =====================
     if (interaction.isModalSubmit()) {
 
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
-      const id = `#${String(++contador).padStart(4, "0")}`;
+      const id = `#${String(++processoCount).padStart(4, "0")}`;
 
       const solicitante = interaction.fields.getTextInputValue("solicitante");
       const alvo = interaction.fields.getTextInputValue("alvo");
       const motivo = interaction.fields.getTextInputValue("motivo");
-
-      db.data.processos.push({
-        id,
-        solicitante,
-        alvo,
-        motivo,
-        status: "ABERTO",
-        logs: []
-      });
-
-      await db.write();
 
       let cat = interaction.guild.channels.cache.find(c => c.name === "📂-tribunal");
 
@@ -201,56 +160,116 @@ Nenhuma investigação poderá ser iniciada sem a devida autorização do Juiz r
           { name: "Solicitante", value: solicitante },
           { name: "Alvo", value: alvo },
           { name: "Motivo", value: motivo },
-          { name: "Status", value: "🟡 Em análise" }
+          { name: "Status", value: "🟡 ABERTO" }
         );
 
-      const btns = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("prova").setLabel("Enviar Prova").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("aud_inicio").setLabel("Iniciar Audiência").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("fechar").setLabel("Encerrar").setStyle(ButtonStyle.Danger)
+      const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("prova").setLabel("📎 Prova").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("audiencia").setLabel("⚖️ Audiência").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Danger)
       );
 
-      await canal.send({ embeds: [embed], components: [btns] });
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("acusacao").setLabel("👮 Acusação").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("falar").setLabel("🗣️ Falar").setStyle(ButtonStyle.Primary)
+      );
 
-      await canal.send("📎 Envie aqui a PROVA inicial do caso.");
+      await canal.send({ embeds: [embed], components: [row1, row2] });
 
-      await log(interaction.guild, `📂 Processo ${id} criado`);
+      await canal.send("📎 Envie a PROVA inicial aqui no chat.");
 
-      return interaction.editReply({ content: `✔ Criado: ${canal}` });
+      return interaction.editReply({
+        content: `✔ Processo criado: ${canal}`
+      });
     }
 
     // =====================
-    // ⚖️ AÇÕES
+    // ⚖️ BOTÕES (TODOS)
     // =====================
     if (interaction.isButton()) {
 
+      const id = interaction.customId;
+
       // 📎 PROVA
-      if (interaction.customId === "prova") {
+      if (id === "prova") {
         return interaction.reply({
-          content: "📎 Envie a prova no chat (imagem ou texto).",
+          content: "📎 Envie a prova no chat do processo.",
           flags: 64
         });
       }
 
-      // 🔒 ENCERRAR
-      if (interaction.customId === "fechar") {
-        await log(interaction.guild, "⚫ Processo encerrado");
-        return interaction.reply({ content: "⚖️ Processo encerrado", flags: 64 });
-      }
-
-      // ⚖️ INICIAR AUDIÊNCIA
-      if (interaction.customId === "aud_inicio") {
-
+      // ⚖️ AUDIÊNCIA
+      if (id === "audiencia") {
         audiencias.set(interaction.channel.id, {
           juiz: interaction.user.id,
           advogado: null,
           acusacao: null,
           turno: "advogado",
-          ativo: true
+          ativa: true
         });
 
         await interaction.channel.send("⚖️ AUDIÊNCIA INICIADA PELO JUIZ");
-        return interaction.reply({ content: "✔ Audiência iniciada", flags: 64 });
+
+        return interaction.reply({
+          content: "✔ Audiência iniciada",
+          flags: 64
+        });
+      }
+
+      // 👨‍💼 ADVOGADO
+      if (id === "advogado") {
+        const a = audiencias.get(interaction.channel.id);
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        a.advogado = interaction.user.id;
+
+        await interaction.channel.send(`👨‍💼 Advogado entrou: <@${interaction.user.id}>`);
+
+        return interaction.reply({
+          content: "✔ Você entrou como advogado",
+          flags: 64
+        });
+      }
+
+      // 👮 ACUSAÇÃO
+      if (id === "acusacao") {
+        const a = audiencias.get(interaction.channel.id);
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        a.acusacao = interaction.user.id;
+
+        await interaction.channel.send(`👮 Acusação entrou: <@${interaction.user.id}>`);
+
+        return interaction.reply({
+          content: "✔ Você entrou como acusação",
+          flags: 64
+        });
+      }
+
+      // 🗣️ FALAR
+      if (id === "falar") {
+        const a = audiencias.get(interaction.channel.id);
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        await interaction.channel.send(`🗣️ FALA REGISTRADA: <@${interaction.user.id}>`);
+
+        return interaction.reply({
+          content: "✔ Fala registrada",
+          flags: 64
+        });
+      }
+
+      // 🔒 ENCERRAR
+      if (id === "encerrar") {
+        audiencias.delete(interaction.channel.id);
+
+        await interaction.channel.send("🔒 PROCESSO ENCERRADO PELO JUIZ");
+
+        return interaction.reply({
+          content: "✔ Encerrado",
+          flags: 64
+        });
       }
     }
 

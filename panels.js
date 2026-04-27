@@ -5,41 +5,55 @@ export function painel() {
     .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
     .setColor("#d4af37")
     .setDescription(`
-🏛️━━━━━━━━━━━━━━━━━━━━━━
+🏛️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━🏛️
+        **SISTEMA JUDICIAL ATIVO**
+🏛️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━🏛️
 
-👨‍⚖️ AUTORIDADE JUDICIAL:
-Nenhuma investigação poderá ser iniciada sem autorização do Juiz.
+👨‍⚖️ **AUTORIDADE JUDICIAL**
+Nenhuma investigação pode ser iniciada sem autorização formal do Juiz responsável.
 
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📌 REQUISITOS:
+📌 **REQUISITOS OBRIGATÓRIOS**
 
-✔ Solicitante completo  
-✔ Alvo completo  
-✔ Motivo detalhado  
-✔ Provas iniciais  
+✔ Identificação completa do solicitante  
+✔ Identificação completa do alvo  
+✔ Motivo detalhado da investigação  
+✔ Provas iniciais obrigatórias  
 
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⏳ PROCESSO:
+⏳ **PROCESSO DE ANÁLISE**
 
-1️⃣ Registro  
-2️⃣ Análise do Juiz  
-3️⃣ Verificação de provas  
-4️⃣ Decisão final  
+1️⃣ Registro automático no sistema  
+2️⃣ Análise do Juiz responsável  
+3️⃣ Verificação das provas apresentadas  
+4️⃣ Aprovação ou negação formal  
 
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚖️ STATUS:
-🟡 Em análise judicial
+⚖️ **STATUS ATUAL**
+🟢 **APTO PARA ANÁLISE**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⛔ **IMPORTANTE**
+• Solicitações falsas serão punidas  
+• Apenas casos reais serão aceitos  
+• Todo processo é monitorado pelo tribunal  
+
+🏛️ Sistema do Tribunal Ativo
     `);
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("abrir_processo")
       .setLabel("📂 Abrir Processo")
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Success)
   );
 
-  return { embeds: [embed], components: [row] };
+  return {
+    embeds: [embed],
+    components: [row]
+  };
 }

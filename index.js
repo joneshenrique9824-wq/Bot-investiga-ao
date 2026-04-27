@@ -19,27 +19,22 @@ import {
 import { Low } from "lowdb";
 import { JSONFile } from "lowdb/node";
 
-// =========================
+// =====================
 // 💾 DATABASE (RAILWAY SAFE)
-// =========================
-const adapter = new JSONFile("db.json");
-const db = new Low(adapter, { processos: [] });
-
+// =====================
+const db = new Low(new JSONFile("db.json"), { processos: [] });
 await db.read();
 db.data ||= { processos: [] };
 
-// =========================
-// BOT
-// =========================
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
+// =====================
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 let contador = 0;
+const audiencias = new Map();
 
-// =========================
+// =====================
 // SLASH COMMAND
-// =========================
+// =====================
 const commands = [
   new SlashCommandBuilder()
     .setName("painel-investigacao")
@@ -53,16 +48,13 @@ await rest.put(
   { body: commands }
 );
 
-// =========================
-// READY
-// =========================
 client.once("ready", () => {
   console.log(`⚖️ Tribunal online: ${client.user.tag}`);
 });
 
-// =========================
+// =====================
 // LOG SYSTEM
-// =========================
+// =====================
 async function log(guild, msg) {
   let ch = guild.channels.cache.find(c => c.name === "📜-logs");
 
@@ -76,139 +68,198 @@ async function log(guild, msg) {
   ch.send(msg);
 }
 
-// =========================
+// =====================
 // INTERAÇÕES
-// =========================
+// =====================
 client.on("interactionCreate", async (interaction) => {
 
-  // 📌 PAINEL
-  if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === "painel-investigacao") {
+  try {
+
+    // =====================
+    // 📌 PAINEL
+    // =====================
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "painel-investigacao") {
+
+        const embed = new EmbedBuilder()
+          .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
+          .setColor("Gold")
+          .setDescription(`
+👨‍⚖️ AUTORIDADE JUDICIAL:
+Nenhuma investigação poderá ser iniciada sem a devida autorização do Juiz responsável.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📌 SOLICITAÇÃO:
+
+✔ Identificação do solicitante  
+✔ Identificação do alvo  
+✔ Motivo detalhado  
+✔ Provas iniciais obrigatórias  
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⏳ PROCESSO:
+
+1 Registro automático  
+2 Análise do Juiz  
+3 Verificação de provas  
+4 Decisão final  
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚖️ DECISÃO:
+
+• Autorizado → investigação liberada  
+• Negado → caso arquivado  
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+👨‍⚖️ Juiz: Nakamura Ofc  
+🏛️ Tribunal RP  
+⚖️ Sistema ativo
+          `);
+
+        const btn = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("abrir_form")
+            .setLabel("Abrir Processo")
+            .setStyle(ButtonStyle.Primary)
+        );
+
+        return interaction.reply({ embeds: [embed], components: [btn] });
+      }
+    }
+
+    // =====================
+    // 📂 MODAL ABRIR
+    // =====================
+    if (interaction.isButton() && interaction.customId === "abrir_form") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("form")
+        .setTitle("Novo Processo");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("solicitante").setLabel("Solicitante").setStyle(1)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("alvo").setLabel("Alvo").setStyle(1)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(2)
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    // =====================
+    // 📂 CRIAR PROCESSO
+    // =====================
+    if (interaction.isModalSubmit()) {
+
+      await interaction.deferReply({ ephemeral: true });
+
+      const id = `#${String(++contador).padStart(4, "0")}`;
+
+      const solicitante = interaction.fields.getTextInputValue("solicitante");
+      const alvo = interaction.fields.getTextInputValue("alvo");
+      const motivo = interaction.fields.getTextInputValue("motivo");
+
+      db.data.processos.push({
+        id,
+        solicitante,
+        alvo,
+        motivo,
+        status: "ABERTO",
+        logs: []
+      });
+
+      await db.write();
+
+      let cat = interaction.guild.channels.cache.find(c => c.name === "📂-tribunal");
+
+      if (!cat) {
+        cat = await interaction.guild.channels.create({
+          name: "📂-tribunal",
+          type: ChannelType.GuildCategory
+        });
+      }
+
+      const canal = await interaction.guild.channels.create({
+        name: `processo-${id}`,
+        type: ChannelType.GuildText,
+        parent: cat.id
+      });
 
       const embed = new EmbedBuilder()
-        .setTitle("🏛️ TRIBUNAL RP - SISTEMA JUDICIAL")
-        .setColor("Gold")
-        .setDescription(`
-✔ Processos oficiais
-✔ Provas obrigatórias
-✔ Audiência controlada
-✔ Julgamento formal
+        .setTitle(`📂 PROCESSO ${id}`)
+        .setColor("Yellow")
+        .addFields(
+          { name: "Solicitante", value: solicitante },
+          { name: "Alvo", value: alvo },
+          { name: "Motivo", value: motivo },
+          { name: "Status", value: "🟡 Em análise" }
+        );
 
-Clique abaixo para iniciar processo.
-        `);
-
-      const btn = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("abrir_form")
-          .setLabel("Criar Processo")
-          .setStyle(ButtonStyle.Primary)
+      const btns = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("prova").setLabel("Enviar Prova").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("aud_inicio").setLabel("Iniciar Audiência").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("fechar").setLabel("Encerrar").setStyle(ButtonStyle.Danger)
       );
 
-      return interaction.reply({ embeds: [embed], components: [btn] });
-    }
-  }
+      await canal.send({ embeds: [embed], components: [btns] });
 
-  // =========================
-  // FORM
-  // =========================
-  if (interaction.isButton() && interaction.customId === "abrir_form") {
+      await canal.send("📎 Envie aqui a PROVA inicial do caso.");
 
-    const modal = new ModalBuilder()
-      .setCustomId("form")
-      .setTitle("Novo Processo");
+      await log(interaction.guild, `📂 Processo ${id} criado`);
 
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("solicitante").setLabel("Solicitante").setStyle(1)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("alvo").setLabel("Alvo").setStyle(1)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(2)
-      )
-    );
-
-    return interaction.showModal(modal);
-  }
-
-  // =========================
-  // CRIAR PROCESSO
-  // =========================
-  if (interaction.isModalSubmit()) {
-
-    await interaction.deferReply({ ephemeral: true });
-
-    const id = `#${String(++contador).padStart(4, "0")}`;
-
-    const solicitante = interaction.fields.getTextInputValue("solicitante");
-    const alvo = interaction.fields.getTextInputValue("alvo");
-    const motivo = interaction.fields.getTextInputValue("motivo");
-
-    // salvar DB
-    db.data.processos.push({
-      id,
-      solicitante,
-      alvo,
-      motivo,
-      status: "ABERTO",
-      logs: []
-    });
-
-    await db.write();
-
-    let cat = interaction.guild.channels.cache.find(c => c.name === "📂-tribunal");
-
-    if (!cat) {
-      cat = await interaction.guild.channels.create({
-        name: "📂-tribunal",
-        type: ChannelType.GuildCategory
-      });
+      return interaction.editReply({ content: `✔ Criado: ${canal}` });
     }
 
-    const canal = await interaction.guild.channels.create({
-      name: `processo-${id}`,
-      type: ChannelType.GuildText,
-      parent: cat.id
-    });
+    // =====================
+    // ⚖️ AÇÕES
+    // =====================
+    if (interaction.isButton()) {
 
-    const embed = new EmbedBuilder()
-      .setTitle(`📂 PROCESSO ${id}`)
-      .setColor("Yellow")
-      .addFields(
-        { name: "Solicitante", value: solicitante },
-        { name: "Alvo", value: alvo },
-        { name: "Motivo", value: motivo },
-        { name: "Status", value: "🟡 ABERTO" }
-      );
+      // 📎 PROVA
+      if (interaction.customId === "prova") {
+        return interaction.reply({
+          content: "📎 Envie a prova no chat (imagem ou texto).",
+          flags: 64
+        });
+      }
 
-    const btns = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("prova").setLabel("Enviar Prova").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("fechar").setLabel("Encerrar").setStyle(ButtonStyle.Danger)
-    );
+      // 🔒 ENCERRAR
+      if (interaction.customId === "fechar") {
+        await log(interaction.guild, "⚫ Processo encerrado");
+        return interaction.reply({ content: "⚖️ Processo encerrado", flags: 64 });
+      }
 
-    await canal.send({ embeds: [embed], components: [btns] });
+      // ⚖️ INICIAR AUDIÊNCIA
+      if (interaction.customId === "aud_inicio") {
 
-    await log(interaction.guild, `📂 Processo ${id} criado`);
+        audiencias.set(interaction.channel.id, {
+          juiz: interaction.user.id,
+          advogado: null,
+          acusacao: null,
+          turno: "advogado",
+          ativo: true
+        });
 
-    return interaction.editReply({ content: `✔ Criado: ${canal}` });
-  }
+        await interaction.channel.send("⚖️ AUDIÊNCIA INICIADA PELO JUIZ");
+        return interaction.reply({ content: "✔ Audiência iniciada", flags: 64 });
+      }
+    }
 
-  // =========================
-  // PROVA
-  // =========================
-  if (interaction.isButton()) {
+  } catch (err) {
+    console.error(err);
 
-    if (interaction.customId === "prova") {
+    if (!interaction.replied) {
       return interaction.reply({
-        content: "📎 Envie sua prova neste canal (imagem ou texto).",
-        flags: 64
-      });
-    }
-
-    if (interaction.customId === "fechar") {
-      return interaction.reply({
-        content: "⚖️ Processo encerrado pelo juiz.",
+        content: "❌ erro no sistema",
         flags: 64
       });
     }

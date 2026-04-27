@@ -6,28 +6,25 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
-  ChannelType
+  ChannelType,
+  PermissionsBitField
 } from "discord.js";
 
 import { painel } from "./panels.js";
-import { iniciarAudiencia, handleAudience } from "./audience.js";
+import { handleAudience } from "./audience.js";
 
 let count = 0;
 
 export async function handleInteractions(interaction) {
 
-  // =====================
-  // COMANDO
-  // =====================
+  // 📌 PAINEL
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "painel-investigacao") {
       return interaction.reply(painel());
     }
   }
 
-  // =====================
-  // ABRIR MODAL
-  // =====================
+  // 📂 ABRIR FORM
   if (interaction.isButton() && interaction.customId === "abrir_processo") {
 
     const modal = new ModalBuilder()
@@ -58,44 +55,78 @@ export async function handleInteractions(interaction) {
     return interaction.showModal(modal);
   }
 
-  // =====================
-  // CRIAR PROCESSO
-  // =====================
+  // 📂 CRIAR PROCESSO (CANAL SEPARADO)
   if (interaction.isModalSubmit() && interaction.customId === "form_processo") {
 
-    const id = `#${String(++count).padStart(4, "0")}`;
+    const id = String(++count).padStart(4, "0");
 
     const solicitante = interaction.fields.getTextInputValue("solicitante");
     const alvo = interaction.fields.getTextInputValue("alvo");
     const motivo = interaction.fields.getTextInputValue("motivo");
 
+    let categoria = interaction.guild.channels.cache.find(c =>
+      c.name === "📂 INVESTIGAÇÕES"
+    );
+
+    if (!categoria) {
+      categoria = await interaction.guild.channels.create({
+        name: "📂 INVESTIGAÇÕES",
+        type: ChannelType.GuildCategory
+      });
+    }
+
     const canal = await interaction.guild.channels.create({
-      name: `processo-${id}`,
-      type: ChannelType.GuildText
+      name: `📂・processo-${id}`,
+      type: ChannelType.GuildText,
+      parent: categoria.id,
+      permissionOverwrites: [
+        {
+          id: interaction.guild.id,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: interaction.user.id,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        },
+        {
+          id: process.env.CARGO_JUIZ,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        }
+      ]
     });
 
     const embed = new EmbedBuilder()
-      .setTitle(`📂 PROCESSO ${id}`)
+      .setTitle(`📂 PROCESSO #${id}`)
       .setColor("Yellow")
-      .addFields(
-        { name: "Solicitante", value: solicitante },
-        { name: "Alvo", value: alvo },
-        { name: "Motivo", value: motivo },
-        { name: "Status", value: "🟡 Em análise" }
-      );
+      .setDescription(`
+⚖️ STATUS: Em análise judicial
 
-    const row1 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("aud_inicio").setLabel("⚖️ Audiência").setStyle(ButtonStyle.Primary),
+👤 Solicitante: ${solicitante}  
+🎯 Alvo: ${alvo}  
+
+📄 Motivo:
+${motivo}
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📌 Aguarde análise do juiz.
+    `);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("aud_inicio").setLabel("⚖️ Iniciar Audiência").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("acusacao").setLabel("👮 Acusação").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Danger)
     );
 
-    const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("acusacao").setLabel("👮 Acusação").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Primary)
-    );
-
-    await canal.send({ embeds: [embed], components: [row1, row2] });
+    await canal.send({ embeds: [embed], components: [row] });
 
     return interaction.reply({
       content: `✔ Processo criado: ${canal}`,
@@ -103,8 +134,6 @@ export async function handleInteractions(interaction) {
     });
   }
 
-  // =====================
-  // AUDIÊNCIA + DEFESA + ACUSAÇÃO
-  // =====================
+  // ⚖️ AUDIÊNCIA + DEFESA
   return handleAudience(interaction);
 }

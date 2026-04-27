@@ -30,7 +30,7 @@ const audiencias = new Map();
 const commands = [
   new SlashCommandBuilder()
     .setName("painel-investigacao")
-    .setDescription("Abrir painel de investigação judicial")
+    .setDescription("Abrir painel judicial")
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
@@ -60,8 +60,28 @@ async function log(guild, msg) {
   channel.send(msg);
 }
 
+// ⚖️ ARTIGOS CRIMINAIS (EXEMPLO RP)
+function getArtigos() {
+  return `
+📚 **ARTIGOS CRIMINAIS APLICÁVEIS**
+
+• Art. 121 — Homicídio  
+• Art. 155 — Furto  
+• Art. 157 — Roubo  
+• Art. 171 — Estelionato  
+• Art. 288 — Organização criminosa  
+• Art. 33 — Tráfico de drogas  
+• Art. 147 — Ameaça  
+• Art. 129 — Lesão corporal  
+• Art. 330 — Desobediência  
+
+⚖️ Análise será feita pelo Juiz responsável.
+`;
+}
+
 // 🎮 INTERAÇÕES
 client.on("interactionCreate", async (interaction) => {
+
   try {
 
     // =========================
@@ -74,16 +94,16 @@ client.on("interactionCreate", async (interaction) => {
           .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
           .setColor("Gold")
           .setDescription(`
-🏛️ SISTEMA JUDICIAL ATIVO
+🏛️ Sistema judicial ativo
 
 ✔ Solicitação obrigatória  
 ✔ Provas obrigatórias  
 ✔ Análise do juiz  
 
 ⏳ Processo:
-1 Registro automático  
-2 Análise judicial  
-3 Decisão final  
+1 Registro  
+2 Análise  
+3 Decisão  
           `);
 
         const btn = new ActionRowBuilder().addComponents(
@@ -98,7 +118,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // =========================
-    // 🔘 BOTÃO ABRIR FORM
+    // 🔘 FORM
     // =========================
     if (interaction.isButton() && interaction.customId === "abrir_form") {
 
@@ -128,7 +148,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // =========================
-    // 📂 PROCESSO
+    // 📂 CRIA PROCESSO
     // =========================
     if (interaction.isModalSubmit()) {
 
@@ -180,7 +200,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const audButtons = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aud_inicio").setLabel("⚖️ Iniciar Audiência").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("aud_adv").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aud_adv").setLabel("👨‍💼 Advogado (defesa)").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aud_acus").setLabel("👮 Acusação").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aud_falar").setLabel("🗣️ Falar").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("aud_encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Danger)
@@ -196,19 +216,56 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // =========================
-    // ⚖️ BOTÕES AUDIÊNCIA + PROCESSO
+    // ⚖️ BOTÕES
     // =========================
     if (interaction.isButton()) {
 
       const a = audiencias.get(interaction.channel.id);
 
-      // -----------------
-      // INICIAR AUDIÊNCIA
-      // -----------------
+      // =========================
+      // 👨‍💼 ADVOGADO (MODAL DEFESA)
+      // =========================
+      if (interaction.customId === "aud_adv") {
+
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        const modal = new ModalBuilder()
+          .setCustomId("defesa_modal")
+          .setTitle("Defesa do Advogado");
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("defesa")
+              .setLabel("Escreva a defesa do acusado")
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      // =========================
+      // 👮 ACUSAÇÃO + ARTIGOS
+      // =========================
+      if (interaction.customId === "aud_acus") {
+
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        await interaction.channel.send(getArtigos());
+        await interaction.channel.send(`👮 **ACUSAÇÃO REGISTRADA POR:** <@${interaction.user.id}>`);
+
+        return interaction.reply({ content: "✔ Acusação enviada com artigos", flags: 64 });
+      }
+
+      // =========================
+      // OUTROS BOTÕES (igual antes)
+      // =========================
       if (interaction.customId === "aud_inicio") {
 
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return interaction.reply({ content: "❌ Só juiz pode iniciar", flags: 64 });
+          return interaction.reply({ content: "❌ Só juiz", flags: 64 });
 
         audiencias.set(interaction.channel.id, {
           juiz: interaction.user.id,
@@ -218,71 +275,11 @@ client.on("interactionCreate", async (interaction) => {
           ativo: true
         });
 
-        await interaction.channel.send("⚖️ **AUDIÊNCIA INICIADA PELO JUIZ**");
+        await interaction.channel.send("⚖️ AUDIÊNCIA INICIADA");
 
         return interaction.reply({ content: "✔ Iniciada", flags: 64 });
       }
 
-      // -----------------
-      // ADVOGADO
-      // -----------------
-      if (interaction.customId === "aud_adv") {
-
-        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
-        if (a.advogado) return interaction.reply({ content: "❌ Já existe advogado", flags: 64 });
-
-        a.advogado = interaction.user.id;
-
-        await interaction.channel.send(`👨‍💼 Advogado: <@${interaction.user.id}>`);
-
-        return interaction.reply({ content: "✔ Registrado", flags: 64 });
-      }
-
-      // -----------------
-      // ACUSAÇÃO
-      // -----------------
-      if (interaction.customId === "aud_acus") {
-
-        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
-        if (a.acusacao) return interaction.reply({ content: "❌ Já existe acusação", flags: 64 });
-
-        a.acusacao = interaction.user.id;
-
-        await interaction.channel.send(`👮 Acusação: <@${interaction.user.id}>`);
-
-        return interaction.reply({ content: "✔ Registrado", flags: 64 });
-      }
-
-      // -----------------
-      // FALAR
-      // -----------------
-      if (interaction.customId === "aud_falar") {
-
-        if (!a || !a.ativo)
-          return interaction.reply({ content: "❌ Sem audiência ativa", flags: 64 });
-
-        const id = interaction.user.id;
-
-        if (a.turno === "advogado" && id !== a.advogado)
-          return interaction.reply({ content: "⛔ turno advogado", flags: 64 });
-
-        if (a.turno === "acusacao" && id !== a.acusacao)
-          return interaction.reply({ content: "⛔ turno acusação", flags: 64 });
-
-        const atual = a.turno;
-        a.turno = a.turno === "advogado" ? "acusacao" : "advogado";
-
-        await interaction.channel.send(`🗣️ ${atual.toUpperCase()}: <@${id}>`);
-
-        return interaction.reply({
-          content: `✔ Próximo: ${a.turno}`,
-          flags: 64
-        });
-      }
-
-      // -----------------
-      // ENCERRAR AUDIÊNCIA
-      // -----------------
       if (interaction.customId === "aud_encerrar") {
 
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
@@ -294,28 +291,21 @@ client.on("interactionCreate", async (interaction) => {
 
         return interaction.reply({ content: "✔ Encerrado", flags: 64 });
       }
+    }
 
-      // -----------------
-      // PROCESSO FINAL
-      // -----------------
-      const embed = EmbedBuilder.from(interaction.message.embeds?.[0] || {});
+    // =========================
+    // 📝 DEFESA MODAL
+    // =========================
+    if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
 
-      if (interaction.customId === "aprovar") {
-        embed.setColor("Green");
-        await log(interaction.guild, "🟢 Aprovado");
-      }
+      const defesa = interaction.fields.getTextInputValue("defesa");
 
-      if (interaction.customId === "negar") {
-        embed.setColor("Red");
-        await log(interaction.guild, "🔴 Negado");
-      }
+      await interaction.channel.send(`👨‍💼 **DEFESA DO ADVOGADO:**\n${defesa}`);
 
-      if (interaction.customId === "encerrar") {
-        embed.setColor("Grey");
-        await log(interaction.guild, "⚫ Encerrado");
-      }
-
-      return interaction.update({ embeds: [embed], components: [] });
+      return interaction.reply({
+        content: "✔ Defesa registrada no processo",
+        flags: 64
+      });
     }
 
   } catch (err) {
@@ -323,7 +313,7 @@ client.on("interactionCreate", async (interaction) => {
 
     if (!interaction.replied) {
       return interaction.reply({
-        content: "❌ erro interno",
+        content: "❌ erro no sistema",
         flags: 64
       });
     }

@@ -62,10 +62,11 @@ async function log(guild, msg) {
 
 // 🎮 INTERAÇÕES
 client.on("interactionCreate", async (interaction) => {
-
   try {
 
+    // =========================
     // 📌 PAINEL
+    // =========================
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "painel-investigacao") {
 
@@ -75,14 +76,14 @@ client.on("interactionCreate", async (interaction) => {
           .setDescription(`
 🏛️ SISTEMA JUDICIAL ATIVO
 
-✔ Solicitação obrigatória
-✔ Provas obrigatórias
-✔ Análise do juiz
+✔ Solicitação obrigatória  
+✔ Provas obrigatórias  
+✔ Análise do juiz  
 
 ⏳ Processo:
-1 Registro
-2 Análise
-3 Decisão
+1 Registro automático  
+2 Análise judicial  
+3 Decisão final  
           `);
 
         const btn = new ActionRowBuilder().addComponents(
@@ -96,7 +97,9 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // 🔘 FORM
+    // =========================
+    // 🔘 BOTÃO ABRIR FORM
+    // =========================
     if (interaction.isButton() && interaction.customId === "abrir_form") {
 
       const modal = new ModalBuilder()
@@ -117,15 +120,19 @@ client.on("interactionCreate", async (interaction) => {
           new TextInputBuilder().setCustomId("alvo_id").setLabel("ID alvo").setStyle(TextInputStyle.Short).setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph).setRequired(true)
+          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo detalhado").setStyle(TextInputStyle.Paragraph).setRequired(true)
         )
       );
 
       return interaction.showModal(modal);
     }
 
+    // =========================
     // 📂 PROCESSO
+    // =========================
     if (interaction.isModalSubmit()) {
+
+      await interaction.deferReply({ flags: 64 });
 
       const id = `#${String(++processoCount).padStart(4, "0")}`;
 
@@ -159,10 +166,10 @@ client.on("interactionCreate", async (interaction) => {
         .setTitle(`📂 PROCESSO ${id}`)
         .setColor("Yellow")
         .addFields(
-          { name: "Solicitante", value: `${nome} (${uid})` },
-          { name: "Alvo", value: `${alvo} (${alvo_id})` },
-          { name: "Motivo", value: motivo },
-          { name: "Status", value: "🟡 Em análise" }
+          { name: "👤 Solicitante", value: `${nome} (${uid})` },
+          { name: "🎯 Alvo", value: `${alvo} (${alvo_id})` },
+          { name: "📄 Motivo", value: motivo },
+          { name: "📜 Status", value: "🟡 Em análise" }
         );
 
       const processButtons = new ActionRowBuilder().addComponents(
@@ -183,23 +190,25 @@ client.on("interactionCreate", async (interaction) => {
 
       await log(interaction.guild, `📂 Processo ${id} criado`);
 
-      return interaction.reply({
-        content: `Processo criado: ${canal}`,
-        flags: 64
+      return interaction.editReply({
+        content: `✔ Processo criado: ${canal}`
       });
     }
 
-    // ⚖️ BOTÕES + AUDIÊNCIA
+    // =========================
+    // ⚖️ BOTÕES AUDIÊNCIA + PROCESSO
+    // =========================
     if (interaction.isButton()) {
 
       const a = audiencias.get(interaction.channel.id);
-      const embed = EmbedBuilder.from(interaction.message.embeds?.[0] || {});
 
-      // 📌 INICIAR AUDIÊNCIA
+      // -----------------
+      // INICIAR AUDIÊNCIA
+      // -----------------
       if (interaction.customId === "aud_inicio") {
 
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return interaction.reply({ content: "❌ Só juiz", flags: 64 });
+          return interaction.reply({ content: "❌ Só juiz pode iniciar", flags: 64 });
 
         audiencias.set(interaction.channel.id, {
           juiz: interaction.user.id,
@@ -211,10 +220,12 @@ client.on("interactionCreate", async (interaction) => {
 
         await interaction.channel.send("⚖️ **AUDIÊNCIA INICIADA PELO JUIZ**");
 
-        return interaction.reply({ content: "✔ Audiência iniciada", flags: 64 });
+        return interaction.reply({ content: "✔ Iniciada", flags: 64 });
       }
 
-      // 👨‍💼 ADVOGADO
+      // -----------------
+      // ADVOGADO
+      // -----------------
       if (interaction.customId === "aud_adv") {
 
         if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
@@ -222,12 +233,14 @@ client.on("interactionCreate", async (interaction) => {
 
         a.advogado = interaction.user.id;
 
-        await interaction.channel.send(`👨‍💼 **ADVOGADO SE INSCREVEU:** <@${interaction.user.id}>`);
+        await interaction.channel.send(`👨‍💼 Advogado: <@${interaction.user.id}>`);
 
-        return interaction.reply({ content: "✔ Advogado registrado", flags: 64 });
+        return interaction.reply({ content: "✔ Registrado", flags: 64 });
       }
 
-      // 👮 ACUSAÇÃO
+      // -----------------
+      // ACUSAÇÃO
+      // -----------------
       if (interaction.customId === "aud_acus") {
 
         if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
@@ -235,38 +248,41 @@ client.on("interactionCreate", async (interaction) => {
 
         a.acusacao = interaction.user.id;
 
-        await interaction.channel.send(`👮 **ACUSAÇÃO REGISTRADA:** <@${interaction.user.id}>`);
+        await interaction.channel.send(`👮 Acusação: <@${interaction.user.id}>`);
 
-        return interaction.reply({ content: "✔ Acusação registrada", flags: 64 });
+        return interaction.reply({ content: "✔ Registrado", flags: 64 });
       }
 
-      // 🗣️ FALAR
+      // -----------------
+      // FALAR
+      // -----------------
       if (interaction.customId === "aud_falar") {
 
         if (!a || !a.ativo)
           return interaction.reply({ content: "❌ Sem audiência ativa", flags: 64 });
 
-        const uid = interaction.user.id;
+        const id = interaction.user.id;
 
-        if (a.turno === "advogado" && uid !== a.advogado)
-          return interaction.reply({ content: "⛔ Turno do advogado", flags: 64 });
+        if (a.turno === "advogado" && id !== a.advogado)
+          return interaction.reply({ content: "⛔ turno advogado", flags: 64 });
 
-        if (a.turno === "acusacao" && uid !== a.acusacao)
-          return interaction.reply({ content: "⛔ Turno da acusação", flags: 64 });
+        if (a.turno === "acusacao" && id !== a.acusacao)
+          return interaction.reply({ content: "⛔ turno acusação", flags: 64 });
 
-        const tipo = a.turno;
-
+        const atual = a.turno;
         a.turno = a.turno === "advogado" ? "acusacao" : "advogado";
 
-        await interaction.channel.send(`🗣️ **${tipo.toUpperCase()} FALOU:** <@${uid}>`);
+        await interaction.channel.send(`🗣️ ${atual.toUpperCase()}: <@${id}>`);
 
         return interaction.reply({
-          content: `✔ Fala registrada. Próximo turno: ${a.turno}`,
+          content: `✔ Próximo: ${a.turno}`,
           flags: 64
         });
       }
 
-      // 🔒 ENCERRAR AUDIÊNCIA
+      // -----------------
+      // ENCERRAR AUDIÊNCIA
+      // -----------------
       if (interaction.customId === "aud_encerrar") {
 
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
@@ -274,36 +290,40 @@ client.on("interactionCreate", async (interaction) => {
 
         audiencias.delete(interaction.channel.id);
 
-        await interaction.channel.send("🔒 **AUDIÊNCIA ENCERRADA PELO JUIZ**");
+        await interaction.channel.send("🔒 AUDIÊNCIA ENCERRADA");
 
         return interaction.reply({ content: "✔ Encerrado", flags: 64 });
       }
 
-      // ⚖️ DECISÕES PROCESSO
+      // -----------------
+      // PROCESSO FINAL
+      // -----------------
+      const embed = EmbedBuilder.from(interaction.message.embeds?.[0] || {});
+
       if (interaction.customId === "aprovar") {
         embed.setColor("Green");
-        await log(interaction.guild, "🟢 Processo aprovado");
+        await log(interaction.guild, "🟢 Aprovado");
       }
 
       if (interaction.customId === "negar") {
         embed.setColor("Red");
-        await log(interaction.guild, "🔴 Processo negado");
+        await log(interaction.guild, "🔴 Negado");
       }
 
       if (interaction.customId === "encerrar") {
         embed.setColor("Grey");
-        await log(interaction.guild, "⚫ Processo encerrado");
+        await log(interaction.guild, "⚫ Encerrado");
       }
 
       return interaction.update({ embeds: [embed], components: [] });
     }
 
   } catch (err) {
-    console.error("Erro geral:", err);
+    console.error(err);
 
     if (!interaction.replied) {
       return interaction.reply({
-        content: "❌ erro no sistema",
+        content: "❌ erro interno",
         flags: 64
       });
     }

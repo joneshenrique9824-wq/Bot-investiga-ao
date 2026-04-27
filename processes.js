@@ -14,9 +14,10 @@ import { painel } from "./panels.js";
 import { handleAudience } from "./audience.js";
 
 let count = 0;
-
-// evita dupla execução de botão
 const cooldown = new Set();
+
+// ⚖️ CARGO DO JUIZ
+const CARGO_JUIZ = "1498346869988921505";
 
 export async function handleInteractions(interaction) {
   try {
@@ -28,7 +29,7 @@ export async function handleInteractions(interaction) {
       }
     }
 
-    // 📂 ABRIR FORM (ANTI BUG)
+    // 📂 ABRIR FORM
     if (interaction.isButton() && interaction.customId === "abrir_processo") {
 
       if (cooldown.has(interaction.user.id))
@@ -102,7 +103,7 @@ export async function handleInteractions(interaction) {
             ]
           },
           {
-            id: process.env.CARGO_JUIZ,
+            id: CARGO_JUIZ,
             allow: [
               PermissionsBitField.Flags.ViewChannel,
               PermissionsBitField.Flags.SendMessages
@@ -142,6 +143,30 @@ ${motivo}
         content: `✔ Processo criado: ${canal}`,
         flags: 64
       });
+    }
+
+    // ⚖️ BLOQUEIO DE JUIZ (AQUI ENTRA A SEGURANÇA)
+    if (interaction.isButton()) {
+
+      // 🔒 iniciar audiência só juiz
+      if (interaction.customId === "aud_inicio") {
+        if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
+          return interaction.reply({
+            content: "❌ Apenas o Juiz pode iniciar audiência.",
+            flags: 64
+          });
+        }
+      }
+
+      // 🔒 encerrar só juiz
+      if (interaction.customId === "encerrar") {
+        if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
+          return interaction.reply({
+            content: "❌ Apenas o Juiz pode encerrar o processo.",
+            flags: 64
+          });
+        }
+      }
     }
 
     // ⚖️ AUDIÊNCIA / DEFESA

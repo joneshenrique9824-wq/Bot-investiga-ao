@@ -23,7 +23,6 @@ if (!process.env.CARGO_JUIZ) throw new Error("CARGO_JUIZ não definido");
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-// 🔢 PROCESSO
 let processoCount = 0;
 
 // 📌 COMANDO
@@ -46,34 +45,18 @@ client.once("ready", () => {
   console.log(`✅ ${client.user.tag} online`);
 });
 
-// 🧠 FUNÇÃO SEGURA
-async function safeReply(interaction, data) {
-  try {
-    if (interaction.replied || interaction.deferred) {
-      return await interaction.followUp(data);
-    }
-    return await interaction.reply(data);
-  } catch (err) {
-    console.error("Erro reply:", err);
-  }
-}
-
-// 📜 LOG
+// 🧠 LOG
 async function log(guild, msg) {
-  try {
-    let channel = guild.channels.cache.find(c => c.name === "📜-logs-investigacao");
+  let channel = guild.channels.cache.find(c => c.name === "📜-logs-investigacao");
 
-    if (!channel) {
-      channel = await guild.channels.create({
-        name: "📜-logs-investigacao",
-        type: ChannelType.GuildText
-      });
-    }
-
-    channel.send(msg);
-  } catch (e) {
-    console.error("Log erro:", e);
+  if (!channel) {
+    channel = await guild.channels.create({
+      name: "📜-logs-investigacao",
+      type: ChannelType.GuildText
+    });
   }
+
+  channel.send(msg);
 }
 
 // 🎮 INTERAÇÕES
@@ -87,13 +70,54 @@ client.on("interactionCreate", async (interaction) => {
 
         const embed = new EmbedBuilder()
           .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
+          .setColor("Gold")
           .setDescription(`
-👨‍⚖️ AUTORIDADE JUDICIAL:
-Nenhuma investigação pode ser iniciada sem autorização.
+🏛️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━🏛️
+        SISTEMA DE INVESTIGAÇÃO JUDICIAL
+🏛️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━🏛️
 
-📂 Sistema judicial ativo.
-          `)
-          .setColor("Gold");
+👨‍⚖️ AUTORIDADE JUDICIAL:
+Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz responsável.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 REQUISITOS OBRIGATÓRIOS:
+
+✔ Identificação completa do solicitante  
+✔ Identificação completa do alvo  
+✔ Motivo detalhado do caso  
+✔ Provas iniciais obrigatórias  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏳ PROCESSO DE ANÁLISE:
+
+1️⃣ Registro automático no sistema  
+2️⃣ Análise detalhada do Juiz  
+3️⃣ Verificação de provas apresentadas  
+4️⃣ Aprovação ou negação formal  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚖️ DECISÃO FINAL:
+
+• Autorização deferida → Investigação liberada  
+• Autorização indeferida → Caso arquivado  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⛔ OBSERVAÇÕES:
+
+• Solicitações falsas serão punidas  
+• Todo processo é monitorado pelo tribunal  
+• Apenas casos reais serão aceitos  
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👨‍⚖️ Juiz Responsável: Nakamura Ofc  
+🏛️ Tribunal de Justiça Oficial  
+⚖️ Sistema Ativo
+          `);
 
         const btn = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
@@ -102,48 +126,72 @@ Nenhuma investigação pode ser iniciada sem autorização.
             .setStyle(ButtonStyle.Primary)
         );
 
-        return await interaction.reply({ embeds: [embed], components: [btn] });
+        return interaction.reply({ embeds: [embed], components: [btn] });
       }
     }
 
-    // 🔘 BOTÃO FORM
+    // 🔘 BOTÃO
     if (interaction.isButton()) {
 
       if (interaction.customId === "abrir_form") {
 
         const modal = new ModalBuilder()
           .setCustomId("form_investigacao")
-          .setTitle("Novo Processo");
+          .setTitle("📂 Novo Processo");
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("solicitante_nome").setLabel("Nome solicitante").setStyle(TextInputStyle.Short).setRequired(true)
+            new TextInputBuilder()
+              .setCustomId("solicitante_nome")
+              .setLabel("Nome do Solicitante")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("solicitante_id").setLabel("ID solicitante").setStyle(TextInputStyle.Short).setRequired(true)
+            new TextInputBuilder()
+              .setCustomId("solicitante_id")
+              .setLabel("ID do Solicitante")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("alvo_nome").setLabel("Nome alvo").setStyle(TextInputStyle.Short).setRequired(true)
+            new TextInputBuilder()
+              .setCustomId("alvo_nome")
+              .setLabel("Nome do Alvo")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("alvo_id").setLabel("ID alvo").setStyle(TextInputStyle.Short).setRequired(true)
+            new TextInputBuilder()
+              .setCustomId("alvo_id")
+              .setLabel("ID do Alvo")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph).setRequired(true)
+            new TextInputBuilder()
+              .setCustomId("motivo")
+              .setLabel("Motivo da Investigação")
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("provas").setLabel("Provas").setStyle(TextInputStyle.Paragraph).setRequired(true)
+            new TextInputBuilder()
+              .setCustomId("provas")
+              .setLabel("Provas Iniciais")
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
           )
         );
 
-        return await interaction.showModal(modal);
+        return interaction.showModal(modal);
       }
     }
 
     // 📂 FORM
     if (interaction.isModalSubmit()) {
 
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
       processoCount++;
       const id = `#${String(processoCount).padStart(4, "0")}`;
@@ -198,20 +246,19 @@ Nenhuma investigação pode ser iniciada sem autorização.
 
       await log(interaction.guild, `📂 Processo ${id} criado por ${interaction.user.tag}`);
 
-      return await safeReply(interaction, {
-        content: `✅ Processo criado: ${canal}`,
-        ephemeral: true
+      return interaction.editReply({
+        content: `✅ Processo criado: ${canal}`
       });
     }
 
-    // ⚖️ BOTÕES DECISÃO
+    // ⚖️ BOTÕES
     if (interaction.isButton()) {
 
       const embed = EmbedBuilder.from(interaction.message.embeds[0]);
 
       if (interaction.customId === "aprovar") {
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return safeReply(interaction, { content: "❌ Sem permissão", ephemeral: true });
+          return interaction.reply({ content: "❌ Sem permissão", flags: 64 });
 
         embed.setColor("Green");
         embed.addFields({ name: "👨‍⚖️ DECISÃO", value: `Autorizado por ${interaction.user.tag}` });
@@ -223,7 +270,7 @@ Nenhuma investigação pode ser iniciada sem autorização.
 
       if (interaction.customId === "negar") {
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return safeReply(interaction, { content: "❌ Sem permissão", ephemeral: true });
+          return interaction.reply({ content: "❌ Sem permissão", flags: 64 });
 
         embed.setColor("Red");
         embed.addFields({ name: "👨‍⚖️ DECISÃO", value: `Negado por ${interaction.user.tag}` });
@@ -243,12 +290,12 @@ Nenhuma investigação pode ser iniciada sem autorização.
     }
 
   } catch (err) {
-    console.error("Erro geral interação:", err);
+    console.error("Erro geral:", err);
 
     if (!interaction.replied) {
       return interaction.reply({
-        content: "❌ Ocorreu um erro no sistema.",
-        ephemeral: true
+        content: "❌ Erro no sistema.",
+        flags: 64
       });
     }
   }

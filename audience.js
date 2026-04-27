@@ -4,13 +4,12 @@ import {
   TextInputStyle,
   ActionRowBuilder,
   EmbedBuilder,
-  PermissionsBitField,
-  ChannelType
+  PermissionsBitField
 } from "discord.js";
 
 const aud = new Map();
 
-// 🔐 COLOQUE AQUI O ID DO CARGO DO JUIZ
+// 🔐 ID DO CARGO DO JUIZ
 const CARGO_JUIZ = "1498346869988921505";
 
 export async function handleAudience(interaction) {
@@ -19,7 +18,7 @@ export async function handleAudience(interaction) {
     const channelId = interaction.channel.id;
     const session = aud.get(channelId);
 
-    // ⚖️ INICIAR AUDIÊNCIA (JUÍZ SOMENTE)
+    // ⚖️ INICIAR AUDIÊNCIA
     if (interaction.isButton() && interaction.customId === "aud_inicio") {
 
       if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
@@ -48,7 +47,7 @@ export async function handleAudience(interaction) {
     // 👨‍💼 ADVOGADO
     if (interaction.isButton() && interaction.customId === "advogado") {
 
-      if (!session || !session.ativo) {
+      if (!session?.ativo) {
         return interaction.reply({
           content: "❌ Nenhuma audiência ativa.",
           flags: 64
@@ -68,7 +67,7 @@ export async function handleAudience(interaction) {
     // 👮 ACUSAÇÃO
     if (interaction.isButton() && interaction.customId === "acusacao") {
 
-      if (!session || !session.ativo) {
+      if (!session?.ativo) {
         return interaction.reply({
           content: "❌ Nenhuma audiência ativa.",
           flags: 64
@@ -85,8 +84,15 @@ export async function handleAudience(interaction) {
       });
     }
 
-    // 📜 DEFESA (MODAL)
+    // 📜 DEFESA
     if (interaction.isButton() && interaction.customId === "defesa") {
+
+      if (!session?.ativo) {
+        return interaction.reply({
+          content: "❌ Nenhuma audiência ativa.",
+          flags: 64
+        });
+      }
 
       const modal = new ModalBuilder()
         .setCustomId("defesa_modal")
@@ -105,7 +111,7 @@ export async function handleAudience(interaction) {
       return interaction.showModal(modal);
     }
 
-    // 📜 DEFESA FINAL (EMBEDED PROFISSIONAL)
+    // 📜 DEFESA FINAL
     if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
 
       const texto = interaction.fields.getTextInputValue("texto");
@@ -124,7 +130,7 @@ export async function handleAudience(interaction) {
       });
     }
 
-    // 🔒 ENCERRAR (TRAVA CHAT)
+    // 🔒 ENCERRAR + TRAVAR CHAT 100%
     if (interaction.isButton() && interaction.customId === "encerrar") {
 
       if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
@@ -136,15 +142,25 @@ export async function handleAudience(interaction) {
 
       aud.delete(channelId);
 
-      // 🔒 TRAVA O CHAT
-      await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-        SendMessages: false
-      });
+      const channel = interaction.channel;
 
-      await interaction.channel.send("🔒 **PROCESSO ENCERRADO PELO JUIZ**");
+      // 🔒 BLOQUEIO TOTAL (NÃO SÓ @everyone)
+      await channel.permissionOverwrites.set([
+        {
+          id: interaction.guild.id,
+          deny: [
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.AddReactions,
+            PermissionsBitField.Flags.CreatePublicThreads,
+            PermissionsBitField.Flags.CreatePrivateThreads
+          ]
+        }
+      ]);
+
+      await channel.send("🔒 **PROCESSO ENCERRADO PELO JUIZ — CHAT BLOQUEADO**");
 
       return interaction.reply({
-        content: "✔ Processo encerrado e chat bloqueado.",
+        content: "✔ Processo encerrado e chat totalmente bloqueado.",
         flags: 64
       });
     }

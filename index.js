@@ -1,3 +1,4 @@
+import "dotenv/config";
 import {
   Client,
   GatewayIntentBits,
@@ -10,27 +11,17 @@ import {
   EmbedBuilder,
   REST,
   Routes,
-  SlashCommandBuilder
+  SlashCommandBuilder,
+  ChannelType,
+  PermissionsBitField
 } from "discord.js";
 
-// 🔒 CONFIG (Railway usa ENV do painel)
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
-const CANAL_ANALISE = process.env.CANAL_ANALISE;
-const CARGO_JUIZ = process.env.CARGO_JUIZ;
+// 🔒 VALIDAÇÃO
+if (!process.env.TOKEN) throw new Error("TOKEN não definido");
+if (!process.env.CLIENT_ID) throw new Error("CLIENT_ID não definido");
+if (!process.env.GUILD_ID) throw new Error("GUILD_ID não definido");
+if (!process.env.CARGO_JUIZ) throw new Error("CARGO_JUIZ não definido");
 
-// 🔍 DEBUG
-console.log("TOKEN:", TOKEN ? "OK" : "NÃO DEFINIDO");
-
-// 🚨 VALIDAÇÃO
-if (!TOKEN) throw new Error("❌ TOKEN não definido");
-if (!CLIENT_ID) throw new Error("❌ CLIENT_ID não definido");
-if (!GUILD_ID) throw new Error("❌ GUILD_ID não definido");
-if (!CANAL_ANALISE) throw new Error("❌ CANAL_ANALISE não definido");
-if (!CARGO_JUIZ) throw new Error("❌ CARGO_JUIZ não definido");
-
-// 🤖 CLIENT
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
@@ -42,37 +33,37 @@ const commands = [
     .setDescription("Abrir painel de investigação")
 ];
 
-// 📡 REGISTRAR COMANDO
-const rest = new REST({ version: "10" }).setToken(TOKEN);
+const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
+// 📡 REGISTRAR
 (async () => {
   try {
     console.log("🔄 Registrando comandos...");
     await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
       { body: commands }
     );
     console.log("✅ Comandos registrados!");
   } catch (err) {
-    console.error("❌ ERRO REST:", err);
+    console.error("❌ Erro:", err);
   }
 })();
 
 // 🚀 ONLINE
 client.once("ready", () => {
-  console.log(`✅ Online como ${client.user.tag}`);
+  console.log(`✅ Logado como ${client.user.tag}`);
 });
 
 // 🎮 INTERAÇÕES
 client.on("interactionCreate", async (interaction) => {
 
-  // SLASH
+  // 🔹 SLASH
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "painel-investigacao") {
 
       const embed = new EmbedBuilder()
         .setTitle("🔍 AUTORIZAÇÃO DE INVESTIGAÇÃO")
-        .setDescription("Clique abaixo para solicitar uma investigação.")
+        .setDescription("Clique abaixo para abrir uma solicitação.")
         .setColor("Gold");
 
       const btn = new ActionRowBuilder().addComponents(
@@ -86,112 +77,172 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
-  // BOTÕES
+  // 🔹 BOTÕES
   if (interaction.isButton()) {
 
-    // ABRIR FORM
+    // 📋 ABRIR FORM
     if (interaction.customId === "abrir_form") {
 
       const modal = new ModalBuilder()
         .setCustomId("form_investigacao")
-        .setTitle("Solicitação de Investigação");
+        .setTitle("Nova Investigação");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("nome")
-            .setLabel("Seu Nome")
+            .setLabel("Seu nome")
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("alvo")
-            .setLabel("Nome do Alvo")
+            .setLabel("Nome do alvo")
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("motivo")
-            .setLabel("Motivo da Investigação")
+            .setLabel("Motivo")
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("provas")
-            .setLabel("Provas Iniciais")
+            .setLabel("Provas")
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         )
       );
 
-      await interaction.showModal(modal);
+      return interaction.showModal(modal);
     }
 
-    // APROVAR / NEGAR
-    if (interaction.customId.startsWith("aprovar_") || interaction.customId.startsWith("negar_")) {
+    // ⚖️ AÇÕES DO JUIZ
+    if (
+      interaction.customId === "aprovar" ||
+      interaction.customId === "negar" ||
+      interaction.customId === "encerrar"
+    ) {
 
-      if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-        return interaction.reply({ content: "❌ Você não é juiz!", ephemeral: true });
+      if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ)) {
+        return interaction.reply({ content: "❌ Sem permissão", ephemeral: true });
       }
 
-      const aprovado = interaction.customId.startsWith("aprovar_");
+      const embed = EmbedBuilder.from(interaction.message.embeds[0]);
 
-      const embed = EmbedBuilder.from(interaction.message.embeds[0])
-        .setColor(aprovado ? "Green" : "Red")
-        .addFields({
-          name: "🔨 Decisão",
-          value: aprovado ? "Autorização Deferida ✅" : "Autorização Indeferida ❌"
-        });
+      let status = "";
+      let log = "";
 
-      await interaction.update({ embeds: [embed], components: [] });
+      if (interaction.customId === "aprovar") {
+        status = "🟢 Investigação AUTORIZADA";
+        log = "Investigação aprovada pelo juiz";
+        embed.setColor("Green");
+      }
+
+      if (interaction.customId === "negar") {
+        status = "🔴 Investigação NEGADA";
+        log = "Investigação negada pelo juiz";
+        embed.setColor("Red");
+      }
+
+      if (interaction.customId === "encerrar") {
+        status = "⚫ Caso ENCERRADO";
+        log = "Caso encerrado";
+        embed.setColor("Grey");
+      }
+
+      // atualizar campos
+      const fields = embed.data.fields;
+
+      fields[4].value = status;
+      fields[5].value += `\n• ${log}`;
+
+      embed.setFields(fields);
+
+      await interaction.update({ embeds: [embed] });
     }
   }
 
-  // FORMULÁRIO
+  // 📂 FORM ENVIADO
   if (interaction.isModalSubmit()) {
 
-    const canal = await client.channels.fetch(CANAL_ANALISE).catch(() => null);
+    const nome = interaction.fields.getTextInputValue("nome");
+    const alvo = interaction.fields.getTextInputValue("alvo");
+    const motivo = interaction.fields.getTextInputValue("motivo");
+    const provas = interaction.fields.getTextInputValue("provas");
 
-    if (!canal) {
-      return interaction.reply({
-        content: "❌ Canal de análise não encontrado",
-        ephemeral: true
+    // 📁 CRIAR CATEGORIA SE NÃO EXISTIR
+    let categoria = interaction.guild.channels.cache.find(
+      c => c.name === "📂 INVESTIGAÇÕES"
+    );
+
+    if (!categoria) {
+      categoria = await interaction.guild.channels.create({
+        name: "📂 INVESTIGAÇÕES",
+        type: ChannelType.GuildCategory
       });
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle("📂 NOVA SOLICITAÇÃO DE INVESTIGAÇÃO")
-      .setColor("Orange")
-      .addFields(
-        { name: "👤 Solicitante", value: interaction.fields.getTextInputValue("nome") },
-        { name: "🎯 Alvo", value: interaction.fields.getTextInputValue("alvo") },
-        { name: "📄 Motivo", value: interaction.fields.getTextInputValue("motivo") },
-        { name: "📎 Provas", value: interaction.fields.getTextInputValue("provas") }
-      )
-      .setFooter({ text: `ID: ${interaction.user.id}` });
+    // 📂 CRIAR CANAL
+    const canal = await interaction.guild.channels.create({
+      name: `📂・${alvo.toLowerCase().replace(/ /g, "-")}`,
+      type: ChannelType.GuildText,
+      parent: categoria.id,
+      permissionOverwrites: [
+        {
+          id: interaction.guild.id,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: interaction.user.id,
+          allow: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: process.env.CARGO_JUIZ,
+          allow: [PermissionsBitField.Flags.ViewChannel]
+        }
+      ]
+    });
 
-    const buttons = new ActionRowBuilder().addComponents(
+    // 📄 EMBED PRONTUÁRIO
+    const embed = new EmbedBuilder()
+      .setTitle("🔍 PRONTUÁRIO DE INVESTIGAÇÃO")
+      .setColor("Yellow")
+      .addFields(
+        { name: "👤 Solicitante", value: `${nome} (${interaction.user.id})` },
+        { name: "🎯 Alvo", value: alvo },
+        { name: "📄 Motivo", value: motivo },
+        { name: "📎 Provas", value: provas },
+        { name: "⏰ Status", value: "🟡 Aguardando análise" },
+        { name: "📜 Logs", value: "• Solicitação criada\n• Aguardando decisão judicial" }
+      );
+
+    const botoes = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`aprovar_${interaction.user.id}`)
+        .setCustomId("aprovar")
         .setLabel("Aprovar")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`negar_${interaction.user.id}`)
+        .setCustomId("negar")
         .setLabel("Negar")
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("encerrar")
+        .setLabel("Encerrar")
+        .setStyle(ButtonStyle.Secondary)
     );
 
-    await canal.send({ embeds: [embed], components: [buttons] });
+    await canal.send({ embeds: [embed], components: [botoes] });
 
     await interaction.reply({
-      content: "✅ Solicitação enviada com sucesso!",
+      content: `✅ Prontuário criado: ${canal}`,
       ephemeral: true
     });
   }
 });
 
-// 🔑 LOGIN
-client.login(TOKEN);
+client.login(process.env.TOKEN);

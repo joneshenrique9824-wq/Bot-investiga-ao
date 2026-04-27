@@ -24,12 +24,13 @@ if (!process.env.CARGO_JUIZ) throw new Error("CARGO_JUIZ não definido");
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 let processoCount = 0;
+const audiencias = new Map();
 
 // 📌 COMANDO
 const commands = [
   new SlashCommandBuilder()
     .setName("painel-investigacao")
-    .setDescription("Abrir painel de investigação judicial")
+    .setDescription("Abrir painel de investigação")
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
@@ -72,51 +73,22 @@ client.on("interactionCreate", async (interaction) => {
           .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
           .setColor("Gold")
           .setDescription(`
-🏛️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━🏛️
-        SISTEMA DE INVESTIGAÇÃO JUDICIAL
-🏛️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━🏛️
+🏛️ SISTEMA DE INVESTIGAÇÃO JUDICIAL
 
-👨‍⚖️ AUTORIDADE JUDICIAL:
-Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz responsável.
+👨‍⚖️ Nenhuma investigação sem autorização do Juiz.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✔ Identificação solicitante  
+✔ Identificação alvo  
+✔ Motivo detalhado  
+✔ Provas iniciais  
 
-📌 REQUISITOS OBRIGATÓRIOS:
-
-✔ Identificação completa do solicitante  
-✔ Identificação completa do alvo  
-✔ Motivo detalhado do caso  
-✔ Provas iniciais obrigatórias  
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⏳ PROCESSO DE ANÁLISE:
-
-1️⃣ Registro automático  
+⏳ Processo:
+1️⃣ Registro  
 2️⃣ Análise do Juiz  
-3️⃣ Verificação de provas  
-4️⃣ Aprovação ou negação  
+3️⃣ Verificação  
+4️⃣ Decisão  
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚖️ DECISÃO FINAL:
-
-• Autorização deferida → Investigação liberada  
-• Autorização indeferida → Caso arquivado  
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⛔ REGRAS:
-
-• Solicitações falsas serão punidas  
-• Sistema monitorado pelo tribunal  
-• Uso indevido é proibido  
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-👨‍⚖️ Juiz Responsável: Nakamura Ofc  
-🏛️ Tribunal Oficial  
-⚖️ Sistema Ativo
+⚖️ Tribunal ativo
           `);
 
         const btn = new ActionRowBuilder().addComponents(
@@ -130,28 +102,28 @@ Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz res
       }
     }
 
-    // 🔘 BOTÃO FORM
+    // 🔘 FORM
     if (interaction.isButton() && interaction.customId === "abrir_form") {
 
       const modal = new ModalBuilder()
         .setCustomId("form_investigacao")
-        .setTitle("📂 Novo Processo");
+        .setTitle("Novo Processo");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante_nome").setLabel("Nome Solicitante").setStyle(TextInputStyle.Short).setRequired(true)
+          new TextInputBuilder().setCustomId("nome").setLabel("Nome solicitante").setStyle(TextInputStyle.Short).setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante_id").setLabel("ID Solicitante").setStyle(TextInputStyle.Short).setRequired(true)
+          new TextInputBuilder().setCustomId("id").setLabel("ID solicitante").setStyle(TextInputStyle.Short).setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("alvo_nome").setLabel("Nome Alvo").setStyle(TextInputStyle.Short).setRequired(true)
+          new TextInputBuilder().setCustomId("alvo").setLabel("Nome alvo").setStyle(TextInputStyle.Short).setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("alvo_id").setLabel("ID Alvo").setStyle(TextInputStyle.Short).setRequired(true)
+          new TextInputBuilder().setCustomId("alvo_id").setLabel("ID alvo").setStyle(TextInputStyle.Short).setRequired(true)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo da Investigação").setStyle(TextInputStyle.Paragraph).setRequired(true)
+          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph).setRequired(true)
         )
       );
 
@@ -163,16 +135,16 @@ Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz res
 
       const id = `#${String(++processoCount).padStart(4, "0")}`;
 
-      const solicitante_nome = interaction.fields.getTextInputValue("solicitante_nome");
-      const solicitante_id = interaction.fields.getTextInputValue("solicitante_id");
-      const alvo_nome = interaction.fields.getTextInputValue("alvo_nome");
+      const nome = interaction.fields.getTextInputValue("nome");
+      const uid = interaction.fields.getTextInputValue("id");
+      const alvo = interaction.fields.getTextInputValue("alvo");
       const alvo_id = interaction.fields.getTextInputValue("alvo_id");
       const motivo = interaction.fields.getTextInputValue("motivo");
 
-      let categoria = interaction.guild.channels.cache.find(c => c.name === "📂 INVESTIGAÇÕES");
+      let cat = interaction.guild.channels.cache.find(c => c.name === "📂 INVESTIGAÇÕES");
 
-      if (!categoria) {
-        categoria = await interaction.guild.channels.create({
+      if (!cat) {
+        cat = await interaction.guild.channels.create({
           name: "📂 INVESTIGAÇÕES",
           type: ChannelType.GuildCategory
         });
@@ -181,7 +153,7 @@ Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz res
       const canal = await interaction.guild.channels.create({
         name: `📂-${id}`,
         type: ChannelType.GuildText,
-        parent: categoria.id,
+        parent: cat.id,
         permissionOverwrites: [
           { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
           { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] },
@@ -193,11 +165,10 @@ Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz res
         .setTitle(`📂 PROCESSO ${id}`)
         .setColor("Yellow")
         .addFields(
-          { name: "👤 SOLICITANTE", value: `${solicitante_nome} (${solicitante_id})` },
-          { name: "🎯 ALVO", value: `${alvo_nome} (${alvo_id})` },
-          { name: "📄 MOTIVO", value: motivo },
-          { name: "📜 STATUS", value: "🟡 Em análise" },
-          { name: "👮 RESPONSÁVEL", value: "Ninguém" }
+          { name: "Solicitante", value: `${nome} (${uid})` },
+          { name: "Alvo", value: `${alvo} (${alvo_id})` },
+          { name: "Motivo", value: motivo },
+          { name: "Status", value: "🟡 Em análise" }
         );
 
       const buttons = new ActionRowBuilder().addComponents(
@@ -206,55 +177,121 @@ Nenhuma investigação poderá ser iniciada sem autorização formal do Juiz res
         new ButtonBuilder().setCustomId("encerrar").setLabel("Encerrar").setStyle(ButtonStyle.Secondary)
       );
 
-      await canal.send({ embeds: [embed], components: [buttons] });
+      const audButtons = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("aud_inicio").setLabel("⚖️ Audiência").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("aud_adv").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aud_acus").setLabel("👮 Acusação").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aud_falar").setLabel("🗣️ Falar").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("aud_encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Danger)
+      );
 
-      await log(interaction.guild, `📂 Processo ${id} criado por ${interaction.user.tag}`);
+      await canal.send({ embeds: [embed], components: [buttons, audButtons] });
+
+      await log(interaction.guild, `📂 Processo ${id} criado`);
 
       return interaction.reply({
-        content: `✅ Processo criado: ${canal}`,
+        content: `Processo criado: ${canal}`,
         flags: 64
       });
     }
 
-    // ⚖️ BOTÕES (UNIFICADO E SEGURO)
+    // ⚖️ AUDIÊNCIA
     if (interaction.isButton()) {
 
+      const a = audiencias.get(interaction.channel.id);
+
+      // INICIAR
+      if (interaction.customId === "aud_inicio") {
+        if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
+          return interaction.reply({ content: "❌ Só juiz", flags: 64 });
+
+        audiencias.set(interaction.channel.id, {
+          juiz: interaction.user.id,
+          advogado: null,
+          acusacao: null,
+          turno: "advogado",
+          ativo: true
+        });
+
+        return interaction.reply({ content: "⚖️ Audiência iniciada", flags: 64 });
+      }
+
+      // ADVOGADO
+      if (interaction.customId === "aud_adv") {
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+        if (a.advogado) return interaction.reply({ content: "❌ Já existe advogado", flags: 64 });
+
+        a.advogado = interaction.user.id;
+        return interaction.reply({ content: "👨‍💼 Advogado definido", flags: 64 });
+      }
+
+      // ACUSAÇÃO
+      if (interaction.customId === "aud_acus") {
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+        if (a.acusacao) return interaction.reply({ content: "❌ Já existe acusação", flags: 64 });
+
+        a.acusacao = interaction.user.id;
+        return interaction.reply({ content: "👮 Acusação definida", flags: 64 });
+      }
+
+      // FALAR
+      if (interaction.customId === "aud_falar") {
+        if (!a || !a.ativo)
+          return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        const id = interaction.user.id;
+
+        if (a.turno === "advogado" && id !== a.advogado)
+          return interaction.reply({ content: "⛔ turno advogado", flags: 64 });
+
+        if (a.turno === "acusacao" && id !== a.acusacao)
+          return interaction.reply({ content: "⛔ turno acusação", flags: 64 });
+
+        a.turno = a.turno === "advogado" ? "acusacao" : "advogado";
+
+        return interaction.reply({
+          content: `🗣️ fala registrada. Próximo: ${a.turno}`,
+          flags: 64
+        });
+      }
+
+      // ENCERRAR
+      if (interaction.customId === "aud_encerrar") {
+        if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
+          return interaction.reply({ content: "❌ só juiz", flags: 64 });
+
+        audiencias.delete(interaction.channel.id);
+
+        return interaction.reply({ content: "⚖️ audiência encerrada", flags: 64 });
+      }
+
+      // DECISÕES
       const embed = EmbedBuilder.from(interaction.message.embeds?.[0] || {});
 
       if (interaction.customId === "aprovar") {
-        if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return interaction.reply({ content: "❌ Sem permissão", flags: 64 });
-
         embed.setColor("Green");
-        embed.addFields({ name: "👨‍⚖️ DECISÃO", value: `Aprovado por ${interaction.user.tag}` });
-
-        await log(interaction.guild, `🟢 Aprovado por ${interaction.user.tag}`);
+        await log(interaction.guild, "Aprovado");
       }
 
       if (interaction.customId === "negar") {
-        if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
-          return interaction.reply({ content: "❌ Sem permissão", flags: 64 });
-
         embed.setColor("Red");
-        embed.addFields({ name: "👨‍⚖️ DECISÃO", value: `Negado por ${interaction.user.tag}` });
-
-        await log(interaction.guild, `🔴 Negado por ${interaction.user.tag}`);
+        await log(interaction.guild, "Negado");
       }
 
       if (interaction.customId === "encerrar") {
         embed.setColor("Grey");
-        await log(interaction.guild, `⚫ Encerrado por ${interaction.user.tag}`);
+        await log(interaction.guild, "Encerrado");
       }
 
       return interaction.update({ embeds: [embed], components: [] });
     }
 
   } catch (err) {
-    console.error("Erro geral:", err);
+    console.error(err);
 
     if (!interaction.replied) {
       return interaction.reply({
-        content: "❌ Erro no sistema",
+        content: "❌ erro no sistema",
         flags: 64
       });
     }

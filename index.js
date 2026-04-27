@@ -35,7 +35,7 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-// 📡 REGISTRAR
+// 📡 REGISTRO
 (async () => {
   await rest.put(
     Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
@@ -51,13 +51,24 @@ client.once("ready", () => {
 // 🎮 INTERAÇÕES
 client.on("interactionCreate", async (interaction) => {
 
-  // 🔹 COMANDO
+  // 📌 COMANDO
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "painel-investigacao") {
 
       const embed = new EmbedBuilder()
-        .setTitle("🔍 AUTORIZAÇÃO DE INVESTIGAÇÃO")
-        .setDescription("Clique abaixo para abrir um processo.")
+        .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
+        .setDescription(`
+👨‍⚖️ AUTORIDADE JUDICIAL:
+Nenhuma investigação poderá ser iniciada sem a devida autorização do Juiz responsável.
+
+📌 SOLICITAÇÃO DE INVESTIGAÇÃO:
+
+Preencha corretamente o formulário abaixo para abertura do processo.
+
+⚖️ O caso será analisado pelo tribunal antes de qualquer decisão.
+
+📂 Apenas solicitações oficiais serão aceitas.
+        `)
         .setColor("Gold");
 
       const btn = new ActionRowBuilder().addComponents(
@@ -71,51 +82,84 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
-  // 🔘 BOTÕES
+  // 🔘 BOTÃO
   if (interaction.isButton()) {
 
-    // 📋 FORM
     if (interaction.customId === "abrir_form") {
 
       const modal = new ModalBuilder()
         .setCustomId("form_investigacao")
-        .setTitle("Abrir Processo");
+        .setTitle("📂 Abrir Processo de Investigação");
 
       modal.addComponents(
+
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("nome").setLabel("Seu nome").setStyle(1).setRequired(true)
+          new TextInputBuilder()
+            .setCustomId("solicitante_nome")
+            .setLabel("👤 Nome do Solicitante")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
         ),
+
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("alvo").setLabel("Nome do alvo").setStyle(1).setRequired(true)
+          new TextInputBuilder()
+            .setCustomId("solicitante_id")
+            .setLabel("🆔 ID do Solicitante")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
         ),
+
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(2).setRequired(true)
+          new TextInputBuilder()
+            .setCustomId("alvo_nome")
+            .setLabel("🎯 Nome do Alvo")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
         ),
+
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("provas").setLabel("Provas").setStyle(2).setRequired(true)
+          new TextInputBuilder()
+            .setCustomId("alvo_id")
+            .setLabel("🆔 ID do Alvo")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("motivo")
+            .setLabel("📄 Motivo da Investigação")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        ),
+
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("provas")
+            .setLabel("📎 Provas Iniciais")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
         )
       );
 
       return interaction.showModal(modal);
     }
 
-    // 👮 ASSUMIR CASO
+    // 👮 ASSUMIR
     if (interaction.customId === "assumir") {
 
       const embed = EmbedBuilder.from(interaction.message.embeds[0]);
       const fields = embed.data.fields;
 
-      // já assumido
       if (fields[6].value !== "Ninguém") {
         return interaction.reply({ content: "❌ Já assumido", ephemeral: true });
       }
 
       fields[6].value = `<@${interaction.user.id}>`;
-      fields[5].value += `\n• Caso assumido por <@${interaction.user.id}>`;
+      fields[5].value += `\n• Assumido por <@${interaction.user.id}>`;
 
       embed.setFields(fields);
 
-      // dar acesso ao staff que assumiu
       await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
         ViewChannel: true
       });
@@ -138,13 +182,13 @@ client.on("interactionCreate", async (interaction) => {
 
       if (interaction.customId === "aprovar") {
         status = "🟢 AUTORIZADO";
-        log = "Juiz aprovou";
+        log = "Juiz aprovou o caso";
         embed.setColor("Green");
       }
 
       if (interaction.customId === "negar") {
         status = "🔴 NEGADO";
-        log = "Juiz negou";
+        log = "Juiz negou o caso";
         embed.setColor("Red");
       }
 
@@ -163,15 +207,16 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
-  // 📂 FORM ENVIADO
+  // 📂 FORM
   if (interaction.isModalSubmit()) {
 
-    const nome = interaction.fields.getTextInputValue("nome");
-    const alvo = interaction.fields.getTextInputValue("alvo");
+    const solicitante_nome = interaction.fields.getTextInputValue("solicitante_nome");
+    const solicitante_id = interaction.fields.getTextInputValue("solicitante_id");
+    const alvo_nome = interaction.fields.getTextInputValue("alvo_nome");
+    const alvo_id = interaction.fields.getTextInputValue("alvo_id");
     const motivo = interaction.fields.getTextInputValue("motivo");
     const provas = interaction.fields.getTextInputValue("provas");
 
-    // 📁 categoria
     let categoria = interaction.guild.channels.cache.find(c => c.name === "📂 INVESTIGAÇÕES");
 
     if (!categoria) {
@@ -181,9 +226,8 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // 🔒 canal privado
     const canal = await interaction.guild.channels.create({
-      name: `📂・${alvo.toLowerCase().replace(/ /g, "-")}`,
+      name: `📂・${alvo_nome.toLowerCase().replace(/ /g, "-")}`,
       type: ChannelType.GuildText,
       parent: categoria.id,
       permissionOverwrites: [
@@ -202,21 +246,19 @@ client.on("interactionCreate", async (interaction) => {
       ]
     });
 
-    // 📄 EMBED
     const embed = new EmbedBuilder()
       .setTitle("📂 PROCESSO DE INVESTIGAÇÃO")
       .setColor("Yellow")
       .addFields(
-        { name: "👤 Criado por", value: `<@${interaction.user.id}>` },
-        { name: "📛 Nome informado", value: nome },
-        { name: "🎯 Alvo", value: alvo },
-        { name: "📄 Motivo", value: motivo },
-        { name: "⏰ Status", value: "🟡 Em análise" },
-        { name: "📜 Logs", value: "• Processo criado" },
-        { name: "👮 Responsável", value: "Ninguém" }
+        { name: "👤 SOLICITANTE", value: `Nome: ${solicitante_nome}\nID: ${solicitante_id}` },
+        { name: "🎯 ALVO", value: `Nome: ${alvo_nome}\nID: ${alvo_id}` },
+        { name: "📄 MOTIVO", value: motivo },
+        { name: "📎 PROVAS", value: provas },
+        { name: "⏰ STATUS", value: "🟡 Em análise" },
+        { name: "📜 LOGS", value: "• Processo criado" },
+        { name: "👮 RESPONSÁVEL", value: "Ninguém" }
       );
 
-    // 🔘 botões
     const botoes = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("assumir").setLabel("Assumir Caso").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("aprovar").setLabel("Aprovar").setStyle(ButtonStyle.Success),
@@ -226,7 +268,7 @@ client.on("interactionCreate", async (interaction) => {
 
     await canal.send({ embeds: [embed], components: [botoes] });
 
-    await interaction.reply({
+    return interaction.reply({
       content: `✅ Processo criado: ${canal}`,
       ephemeral: true
     });

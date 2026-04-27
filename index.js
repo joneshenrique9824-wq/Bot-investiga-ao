@@ -60,10 +60,10 @@ async function log(guild, msg) {
   channel.send(msg);
 }
 
-// ⚖️ ARTIGOS CRIMINAIS (EXEMPLO RP)
-function getArtigos() {
+// 📚 ARTIGOS
+function artigos() {
   return `
-📚 **ARTIGOS CRIMINAIS APLICÁVEIS**
+📚 **ARTIGOS CRIMINAIS**
 
 • Art. 121 — Homicídio  
 • Art. 155 — Furto  
@@ -75,7 +75,7 @@ function getArtigos() {
 • Art. 129 — Lesão corporal  
 • Art. 330 — Desobediência  
 
-⚖️ Análise será feita pelo Juiz responsável.
+⚖️ Análise judicial em andamento...
 `;
 }
 
@@ -94,16 +94,16 @@ client.on("interactionCreate", async (interaction) => {
           .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
           .setColor("Gold")
           .setDescription(`
-🏛️ Sistema judicial ativo
+🏛️ SISTEMA JUDICIAL ATIVO
 
-✔ Solicitação obrigatória  
-✔ Provas obrigatórias  
-✔ Análise do juiz  
+✔ Prova inicial obrigatória  
+✔ Processo registrado  
+✔ Canal aberto para investigação  
 
-⏳ Processo:
+⏳ Fluxo:
 1 Registro  
 2 Análise  
-3 Decisão  
+3 Julgamento  
           `);
 
         const btn = new ActionRowBuilder().addComponents(
@@ -141,6 +141,9 @@ client.on("interactionCreate", async (interaction) => {
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("motivo").setLabel("Motivo detalhado").setStyle(TextInputStyle.Paragraph).setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("provas").setLabel("Prova inicial (OBRIGATÓRIO)").setStyle(TextInputStyle.Paragraph).setRequired(true)
         )
       );
 
@@ -161,6 +164,14 @@ client.on("interactionCreate", async (interaction) => {
       const alvo = interaction.fields.getTextInputValue("alvo");
       const alvo_id = interaction.fields.getTextInputValue("alvo_id");
       const motivo = interaction.fields.getTextInputValue("motivo");
+      const provas = interaction.fields.getTextInputValue("provas");
+
+      // 🔥 validação de prova inicial
+      if (!provas || provas.length < 10) {
+        return interaction.editReply({
+          content: "❌ É obrigatório apresentar uma prova inicial mínima (descrição detalhada ou evidência)."
+        });
+      }
 
       let cat = interaction.guild.channels.cache.find(c => c.name === "📂 INVESTIGAÇÕES");
 
@@ -189,6 +200,7 @@ client.on("interactionCreate", async (interaction) => {
           { name: "👤 Solicitante", value: `${nome} (${uid})` },
           { name: "🎯 Alvo", value: `${alvo} (${alvo_id})` },
           { name: "📄 Motivo", value: motivo },
+          { name: "📎 Prova inicial", value: provas },
           { name: "📜 Status", value: "🟡 Em análise" }
         );
 
@@ -200,8 +212,8 @@ client.on("interactionCreate", async (interaction) => {
 
       const audButtons = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aud_inicio").setLabel("⚖️ Iniciar Audiência").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("aud_adv").setLabel("👨‍💼 Advogado (defesa)").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("aud_acus").setLabel("👮 Acusação").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aud_adv").setLabel("👨‍💼 Defesa (Advogado)").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("aud_acus").setLabel("👮 Acusação + Artigos").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("aud_falar").setLabel("🗣️ Falar").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("aud_encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Danger)
       );
@@ -222,46 +234,9 @@ client.on("interactionCreate", async (interaction) => {
 
       const a = audiencias.get(interaction.channel.id);
 
-      // =========================
-      // 👨‍💼 ADVOGADO (MODAL DEFESA)
-      // =========================
-      if (interaction.customId === "aud_adv") {
-
-        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
-
-        const modal = new ModalBuilder()
-          .setCustomId("defesa_modal")
-          .setTitle("Defesa do Advogado");
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("defesa")
-              .setLabel("Escreva a defesa do acusado")
-              .setStyle(TextInputStyle.Paragraph)
-              .setRequired(true)
-          )
-        );
-
-        return interaction.showModal(modal);
-      }
-
-      // =========================
-      // 👮 ACUSAÇÃO + ARTIGOS
-      // =========================
-      if (interaction.customId === "aud_acus") {
-
-        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
-
-        await interaction.channel.send(getArtigos());
-        await interaction.channel.send(`👮 **ACUSAÇÃO REGISTRADA POR:** <@${interaction.user.id}>`);
-
-        return interaction.reply({ content: "✔ Acusação enviada com artigos", flags: 64 });
-      }
-
-      // =========================
-      // OUTROS BOTÕES (igual antes)
-      // =========================
+      // -------------------------
+      // AUDIÊNCIA INICIAR
+      // -------------------------
       if (interaction.customId === "aud_inicio") {
 
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
@@ -275,11 +250,78 @@ client.on("interactionCreate", async (interaction) => {
           ativo: true
         });
 
-        await interaction.channel.send("⚖️ AUDIÊNCIA INICIADA");
+        await interaction.channel.send("⚖️ AUDIÊNCIA INICIADA PELO JUIZ");
 
         return interaction.reply({ content: "✔ Iniciada", flags: 64 });
       }
 
+      // -------------------------
+      // ADVOGADO DEFESA (MODAL)
+      // -------------------------
+      if (interaction.customId === "aud_adv") {
+
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        const modal = new ModalBuilder()
+          .setCustomId("defesa_modal")
+          .setTitle("Defesa do Advogado");
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("defesa")
+              .setLabel("Escreva a defesa completa")
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      // -------------------------
+      // ACUSAÇÃO + ARTIGOS
+      // -------------------------
+      if (interaction.customId === "aud_acus") {
+
+        if (!a) return interaction.reply({ content: "❌ Sem audiência", flags: 64 });
+
+        await interaction.channel.send(artigos());
+        await interaction.channel.send(`👮 Acusação registrada por <@${interaction.user.id}>`);
+
+        return interaction.reply({ content: "✔ Acusação enviada", flags: 64 });
+      }
+
+      // -------------------------
+      // FALAR
+      // -------------------------
+      if (interaction.customId === "aud_falar") {
+
+        if (!a || !a.ativo)
+          return interaction.reply({ content: "❌ Sem audiência ativa", flags: 64 });
+
+        const uid = interaction.user.id;
+
+        if (a.turno === "advogado" && uid !== a.advogado)
+          return interaction.reply({ content: "⛔ turno do advogado", flags: 64 });
+
+        if (a.turno === "acusacao" && uid !== a.acusacao)
+          return interaction.reply({ content: "⛔ turno da acusação", flags: 64 });
+
+        const atual = a.turno;
+        a.turno = a.turno === "advogado" ? "acusacao" : "advogado";
+
+        await interaction.channel.send(`🗣️ ${atual.toUpperCase()}: <@${uid}>`);
+
+        return interaction.reply({
+          content: `✔ Próximo turno: ${a.turno}`,
+          flags: 64
+        });
+      }
+
+      // -------------------------
+      // ENCERRAR AUDIÊNCIA
+      // -------------------------
       if (interaction.customId === "aud_encerrar") {
 
         if (!interaction.member.roles.cache.has(process.env.CARGO_JUIZ))
@@ -291,6 +333,17 @@ client.on("interactionCreate", async (interaction) => {
 
         return interaction.reply({ content: "✔ Encerrado", flags: 64 });
       }
+
+      // -------------------------
+      // DECISÕES PROCESSO
+      // -------------------------
+      const embed = EmbedBuilder.from(interaction.message.embeds?.[0] || {});
+
+      if (interaction.customId === "aprovar") embed.setColor("Green");
+      if (interaction.customId === "negar") embed.setColor("Red");
+      if (interaction.customId === "encerrar") embed.setColor("Grey");
+
+      return interaction.update({ embeds: [embed], components: [] });
     }
 
     // =========================
@@ -300,10 +353,10 @@ client.on("interactionCreate", async (interaction) => {
 
       const defesa = interaction.fields.getTextInputValue("defesa");
 
-      await interaction.channel.send(`👨‍💼 **DEFESA DO ADVOGADO:**\n${defesa}`);
+      await interaction.channel.send(`👨‍💼 DEFESA DO ADVOGADO:\n${defesa}`);
 
       return interaction.reply({
-        content: "✔ Defesa registrada no processo",
+        content: "✔ Defesa registrada",
         flags: 64
       });
     }

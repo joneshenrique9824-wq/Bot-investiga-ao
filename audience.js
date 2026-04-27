@@ -2,79 +2,117 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ActionRowBuilder
+  ActionRowBuilder,
+  EmbedBuilder
 } from "discord.js";
 
 const aud = new Map();
 
 export async function handleAudience(interaction) {
+  try {
 
-  // ⚖️ INICIAR AUDIÊNCIA
-  if (interaction.isButton() && interaction.customId === "aud_inicio") {
+    const channelId = interaction.channel.id;
+    const session = aud.get(channelId);
 
-    aud.set(interaction.channel.id, {
-      juiz: interaction.user.id
-    });
+    // ⚖️ INICIAR AUDIÊNCIA
+    if (interaction.isButton() && interaction.customId === "aud_inicio") {
 
-    return interaction.reply({
-      content: "⚖️ Audiência iniciada pelo juiz.",
-      flags: 64
-    });
-  }
+      aud.set(channelId, {
+        juiz: interaction.user.id,
+        advogado: null,
+        acusacao: null,
+        turno: "advogado"
+      });
 
-  // 👨‍💼 ADVOGADO
-  if (interaction.isButton() && interaction.customId === "advogado") {
-    return interaction.reply({
-      content: "👨‍💼 Advogado registrado no caso.",
-      flags: 64
-    });
-  }
+      await interaction.channel.send("⚖️ **AUDIÊNCIA INICIADA PELO JUIZ**");
 
-  // 👮 ACUSAÇÃO
-  if (interaction.isButton() && interaction.customId === "acusacao") {
-    return interaction.reply({
-      content: "👮 Acusação registrada no caso.",
-      flags: 64
-    });
-  }
+      return interaction.reply({ content: "✔ Audiência iniciada", flags: 64 });
+    }
 
-  // 📜 DEFESA (ESCRITA)
-  if (interaction.isButton() && interaction.customId === "defesa") {
+    // 👨‍💼 ADVOGADO
+    if (interaction.isButton() && interaction.customId === "advogado") {
 
-    const modal = new ModalBuilder()
-      .setCustomId("defesa_modal")
-      .setTitle("📜 Defesa do Advogado");
+      if (!session)
+        return interaction.reply({ content: "❌ Nenhuma audiência ativa", flags: 64 });
 
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("texto")
-          .setLabel("Escreva a defesa completa")
-          .setStyle(TextInputStyle.Paragraph)
-      )
-    );
+      session.advogado = interaction.user.id;
 
-    return interaction.showModal(modal);
-  }
+      await interaction.channel.send(`👨‍💼 **ADVOGADO REGISTRADO:** <@${interaction.user.id}>`);
 
-  if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
+      return interaction.reply({ content: "✔ Advogado registrado", flags: 64 });
+    }
 
-    const texto = interaction.fields.getTextInputValue("texto");
+    // 👮 ACUSAÇÃO
+    if (interaction.isButton() && interaction.customId === "acusacao") {
 
-    await interaction.channel.send(`📜 **DEFESA DO ADVOGADO:**\n\n${texto}`);
+      if (!session)
+        return interaction.reply({ content: "❌ Nenhuma audiência ativa", flags: 64 });
 
-    return interaction.reply({
-      content: "✔ Defesa registrada com sucesso",
-      flags: 64
-    });
-  }
+      session.acusacao = interaction.user.id;
 
-  // 🔒 ENCERRAR
-  if (interaction.isButton() && interaction.customId === "encerrar") {
+      await interaction.channel.send(`👮 **ACUSAÇÃO REGISTRADA:** <@${interaction.user.id}>`);
 
-    return interaction.reply({
-      content: "🔒 Processo encerrado pelo juiz.",
-      flags: 64
-    });
+      return interaction.reply({ content: "✔ Acusação registrada", flags: 64 });
+    }
+
+    // 📜 DEFESA
+    if (interaction.isButton() && interaction.customId === "defesa") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("defesa_modal")
+        .setTitle("📜 Defesa Profissional");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("texto")
+            .setLabel("Escreva a defesa completa")
+            .setStyle(TextInputStyle.Paragraph)
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    // 📜 DEFESA FINAL (BONITA)
+    if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
+
+      const texto = interaction.fields.getTextInputValue("texto");
+
+      const embed = new EmbedBuilder()
+        .setTitle("📜 DEFESA DO ADVOGADO")
+        .setColor("#3498db")
+        .setDescription(texto);
+
+      await interaction.channel.send({ embeds: [embed] });
+
+      return interaction.reply({
+        content: "✔ Defesa registrada com sucesso",
+        flags: 64
+      });
+    }
+
+    // 🔒 ENCERRAR
+    if (interaction.isButton() && interaction.customId === "encerrar") {
+
+      aud.delete(channelId);
+
+      await interaction.channel.send("🔒 **PROCESSO ENCERRADO PELO JUIZ**");
+
+      return interaction.reply({
+        content: "✔ Processo encerrado",
+        flags: 64
+      });
+    }
+
+  } catch (err) {
+    console.error("Erro audiência:", err);
+
+    if (!interaction.replied) {
+      return interaction.reply({
+        content: "❌ Erro no sistema de audiência",
+        flags: 64
+      });
+    }
   }
 }

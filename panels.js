@@ -5,28 +5,41 @@ export function painel() {
     .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
     .setColor("#d4af37")
     .setDescription(`
-🏛️ SISTEMA JUDICIAL RP
+🏛️━━━━━━━━━━━━━━━━━━━━━━
 
-👨‍⚖️ Nenhuma investigação sem autorização.
+👨‍⚖️ AUTORIDADE JUDICIAL:
+Nenhuma investigação poderá ser iniciada sem autorização do Juiz.
 
-📌 Solicitação obrigatória:
-• Solicitante
-• Alvo
-• Motivo
-• Provas
+━━━━━━━━━━━━━━━━━━━━━━
 
-⚖️ Análise do juiz obrigatória
-🔨 Decisão formal
+📌 REQUISITOS:
 
-🏛️ Tribunal ativo
+✔ Solicitante completo  
+✔ Alvo completo  
+✔ Motivo detalhado  
+✔ Provas iniciais  
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⏳ PROCESSO:
+
+1️⃣ Registro  
+2️⃣ Análise do Juiz  
+3️⃣ Verificação de provas  
+4️⃣ Decisão final  
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+⚖️ STATUS:
+🟡 Em análise judicial
     `);
 
-  const btn = new ActionRowBuilder().addComponents(
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("abrir_processo")
       .setLabel("📂 Abrir Processo")
       .setStyle(ButtonStyle.Primary)
   );
 
-  return { embeds: [embed], components: [btn] };
+  return { embeds: [embed], components: [row] };
 }

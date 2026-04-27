@@ -4,7 +4,7 @@ export async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("painel-investigacao")
-      .setDescription("Abrir sistema tribunal RP")
+      .setDescription("Abrir sistema de investigação judicial")
   ];
 
   const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);

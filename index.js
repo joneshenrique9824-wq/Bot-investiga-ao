@@ -16,38 +16,41 @@ import {
   PermissionsBitField
 } from "discord.js";
 
+/* =========================
+   CLIENTE
+========================= */
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
 /* =========================
-   CONFIGURAÇÕES
+   CONFIG
 ========================= */
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-// ⚖️ CARGO DO JUIZ
 const CARGO_JUIZ = "1498346869988921505";
 
 /* =========================
-   BANCO EM MEMÓRIA
+   MEMÓRIA (SEM DB)
 ========================= */
 
-const audiencias = new Map();
-let count = 0;
+const processos = new Map();
+let contador = 0;
 const cooldown = new Set();
 
 /* =========================
-   REGISTRO DE COMANDO
+   REGISTRAR COMANDO
 ========================= */
 
 async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
-      .setName("painel-investigacao")
-      .setDescription("Abrir sistema do tribunal")
+      .setName("tribunal")
+      .setDescription("Abrir painel do Tribunal Elite Pro Max")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -59,56 +62,62 @@ async function registerCommands() {
 }
 
 /* =========================
-   PAINEL
+   PAINEL PRO MAX
 ========================= */
 
 function painel() {
-  const embed = new EmbedBuilder()
-    .setTitle("🔍⚖️ SISTEMA JUDICIAL ⚖️🔍")
-    .setColor("#d4af37")
-    .setDescription(`
-🏛️ Tribunal Ativo
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("⚖️ TRIBUNAL ELITE PRO MAX")
+        .setColor("#d4af37")
+        .setDescription(`
+🏛️ Sistema Judicial de Alta Segurança
 
-📌 Abra um processo judicial
-⚖️ Aguarde análise do juiz
-🔒 Processo seguro e monitorado
-    `);
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("abrir_processo")
-      .setLabel("📂 Abrir Processo")
-      .setStyle(ButtonStyle.Success)
-  );
-
-  return { embeds: [embed], components: [row] };
+📂 Criação de processos automatizada
+⚖️ Julgamento exclusivo por juízes
+📜 Defesa e acusação organizadas
+🔒 Controle total do tribunal
+        `)
+    ],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("abrir_processo")
+          .setLabel("📂 Abrir Processo")
+          .setStyle(ButtonStyle.Success)
+      )
+    ]
+  };
 }
 
 /* =========================
-   HANDLER PRINCIPAL
+   START BOT
+========================= */
+
+client.once("ready", () => {
+  console.log(`⚖️ Tribunal PRO MAX online: ${client.user.tag}`);
+});
+
+/* =========================
+   INTERAÇÕES
 ========================= */
 
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    /* =========================
-       COMANDO
-    ========================= */
-
+    /* ================= COMANDO ================= */
     if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "painel-investigacao") {
+      if (interaction.commandName === "tribunal") {
         return interaction.reply(painel());
       }
     }
 
-    /* =========================
-       ABRIR PROCESSO (MODAL)
-    ========================= */
-
+    /* ================= ABRIR PROCESSO ================= */
     if (interaction.isButton() && interaction.customId === "abrir_processo") {
 
       if (cooldown.has(interaction.user.id)) {
-        return interaction.reply({ content: "⏳ Aguarde...", ephemeral: true });
+        return interaction.reply({ content: "⏳ Aguarde alguns segundos...", ephemeral: true });
       }
 
       cooldown.add(interaction.user.id);
@@ -116,7 +125,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const modal = new ModalBuilder()
         .setCustomId("form_processo")
-        .setTitle("📂 Novo Processo");
+        .setTitle("📂 Novo Processo Judicial");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
@@ -134,7 +143,7 @@ client.on("interactionCreate", async (interaction) => {
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("motivo")
-            .setLabel("Motivo")
+            .setLabel("Motivo do Processo")
             .setStyle(TextInputStyle.Paragraph)
         )
       );
@@ -142,20 +151,17 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* =========================
-       CRIAR PROCESSO
-    ========================= */
-
+    /* ================= CRIAR PROCESSO ================= */
     if (interaction.isModalSubmit() && interaction.customId === "form_processo") {
 
-      const id = String(++count).padStart(4, "0");
+      const id = String(++contador).padStart(4, "0");
 
       const solicitante = interaction.fields.getTextInputValue("solicitante");
       const alvo = interaction.fields.getTextInputValue("alvo");
       const motivo = interaction.fields.getTextInputValue("motivo");
 
       const canal = await interaction.guild.channels.create({
-        name: `processo-${id}`,
+        name: `⚖️-processo-${id}`,
         type: ChannelType.GuildText,
         permissionOverwrites: [
           {
@@ -179,15 +185,15 @@ client.on("interactionCreate", async (interaction) => {
         ]
       });
 
-      audiencias.set(canal.id, {
+      processos.set(canal.id, {
         juiz: null,
         advogado: null,
         acusacao: null,
-        ativo: true
+        status: "ativo"
       });
 
       const embed = new EmbedBuilder()
-        .setTitle(`⚖️ PROCESSO #${id}`)
+        .setTitle(`⚖️ PROCESSO PRO MAX #${id}`)
         .setColor("#f1c40f")
         .setDescription(`
 👤 Solicitante: ${solicitante}
@@ -195,6 +201,9 @@ client.on("interactionCreate", async (interaction) => {
 
 📄 Motivo:
 ${motivo}
+
+━━━━━━━━━━━━━━━━
+📌 Aguarde início da audiência
         `);
 
       const row = new ActionRowBuilder().addComponents(
@@ -213,32 +222,27 @@ ${motivo}
       });
     }
 
-    /* =========================
-       AUDIÊNCIA
-    ========================= */
+    /* ================= SESSION ================= */
+    const session = processos.get(interaction.channel?.id);
 
-    const session = audiencias.get(interaction.channel?.id);
-
+    /* ================= BOTÕES ================= */
     if (interaction.isButton()) {
 
-      // ⚖️ INICIAR AUDIÊNCIA
+      // ⚖️ AUDIÊNCIA
       if (interaction.customId === "aud_inicio") {
         if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-          return interaction.reply({ content: "❌ Apenas o Juiz pode iniciar.", ephemeral: true });
+          return interaction.reply({ content: "❌ Apenas o juiz pode iniciar.", ephemeral: true });
         }
 
-        session.juiz = interaction.user.id;
+        if (session) session.juiz = interaction.user.id;
 
-        return interaction.reply({
-          content: "⚖️ Audiência iniciada!",
-          ephemeral: true
-        });
+        return interaction.reply({ content: "⚖️ Audiência iniciada com sucesso", ephemeral: true });
       }
 
       // 👨‍💼 ADVOGADO
       if (interaction.customId === "advogado") {
-        if (!session?.ativo) {
-          return interaction.reply({ content: "❌ Sem audiência ativa.", ephemeral: true });
+        if (!session?.status) {
+          return interaction.reply({ content: "❌ Processo inválido", ephemeral: true });
         }
 
         session.advogado = interaction.user.id;
@@ -248,8 +252,8 @@ ${motivo}
 
       // 👮 ACUSAÇÃO
       if (interaction.customId === "acusacao") {
-        if (!session?.ativo) {
-          return interaction.reply({ content: "❌ Sem audiência ativa.", ephemeral: true });
+        if (!session?.status) {
+          return interaction.reply({ content: "❌ Processo inválido", ephemeral: true });
         }
 
         session.acusacao = interaction.user.id;
@@ -257,12 +261,30 @@ ${motivo}
         return interaction.reply({ content: "✔ Acusação registrada", ephemeral: true });
       }
 
+      // 🔒 ENCERRAR
+      if (interaction.customId === "encerrar") {
+        if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
+          return interaction.reply({ content: "❌ Apenas o juiz pode encerrar.", ephemeral: true });
+        }
+
+        processos.delete(interaction.channel.id);
+
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
+          SendMessages: false,
+          AddReactions: false
+        });
+
+        await interaction.channel.send("🔒 Processo encerrado pelo Tribunal PRO MAX.");
+
+        return interaction.reply({ content: "✔ Encerrado com sucesso", ephemeral: true });
+      }
+
       // 📜 DEFESA
       if (interaction.customId === "defesa") {
 
         const modal = new ModalBuilder()
           .setCustomId("defesa_modal")
-          .setTitle("📜 Defesa");
+          .setTitle("📜 Defesa Oficial");
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
@@ -275,43 +297,21 @@ ${motivo}
 
         return interaction.showModal(modal);
       }
-
-      // 🔒 ENCERRAR
-      if (interaction.customId === "encerrar") {
-
-        if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-          return interaction.reply({ content: "❌ Apenas o Juiz pode encerrar.", ephemeral: true });
-        }
-
-        audiencias.delete(interaction.channel.id);
-
-        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-          SendMessages: false,
-          AddReactions: false
-        });
-
-        await interaction.channel.send("🔒 Processo encerrado pelo tribunal.");
-
-        return interaction.reply({ content: "✔ Encerrado", ephemeral: true });
-      }
     }
 
-    /* =========================
-       DEFESA MODAL
-    ========================= */
-
+    /* ================= DEFESA ================= */
     if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
 
       const texto = interaction.fields.getTextInputValue("texto");
 
       const embed = new EmbedBuilder()
-        .setTitle("📜 DEFESA")
+        .setTitle("📜 DEFESA OFICIAL")
         .setColor("#3498db")
         .setDescription(texto);
 
       await interaction.channel.send({ embeds: [embed] });
 
-      return interaction.reply({ content: "✔ Defesa enviada", ephemeral: true });
+      return interaction.reply({ content: "✔ Defesa registrada com sucesso", ephemeral: true });
     }
 
   } catch (err) {
@@ -319,7 +319,7 @@ ${motivo}
 
     if (!interaction.replied) {
       return interaction.reply({
-        content: "❌ Erro interno no sistema",
+        content: "❌ Erro interno no Tribunal PRO MAX",
         ephemeral: true
       });
     }
@@ -327,12 +327,8 @@ ${motivo}
 });
 
 /* =========================
-   START BOT
+   START
 ========================= */
-
-client.once("ready", () => {
-  console.log(`⚖️ Tribunal online: ${client.user.tag}`);
-});
 
 await registerCommands();
 client.login(TOKEN);

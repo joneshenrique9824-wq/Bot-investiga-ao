@@ -12,6 +12,6 @@ client.once("ready", () => {
   console.log(`⚖️ Tribunal online: ${client.user.tag}`);
 });
 
-client.on("interactionCreate", (i) => handleInteractions(i, client));
+client.on("interactionCreate", (i) => handleInteractions(i));
 
 client.login(process.env.TOKEN);

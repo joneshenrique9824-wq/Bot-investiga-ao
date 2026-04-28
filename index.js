@@ -36,6 +36,7 @@ const client = new Client({
 
 let contador = 0;
 const processos = new Map();
+const cooldown = new Set();
 
 /* ================= TEMPO ================= */
 
@@ -53,6 +54,8 @@ function gerarEmbed(id, data) {
     .setTitle(`🔍 INVESTIGAÇÃO #${id}`)
     .setColor("#f1c40f")
     .setDescription(`
+👮 Criado por: <@${data.criador}>
+
 👤 ${data.solicitante}
 🎯 ${data.alvo}
 
@@ -140,6 +143,13 @@ client.on("interactionCreate", async (interaction) => {
     /* ABRIR */
     if (interaction.isButton() && interaction.customId === "abrir") {
 
+      if (cooldown.has(interaction.user.id)) {
+        return interaction.reply({ content: "⏳ Aguarde antes de abrir outra investigação.", ephemeral: true });
+      }
+
+      cooldown.add(interaction.user.id);
+      setTimeout(() => cooldown.delete(interaction.user.id), 10000);
+
       if (
         !interaction.member.roles.cache.has(POLICIA_CIVIL) &&
         !interaction.member.roles.cache.has(POLICIA_FEDERAL)
@@ -174,7 +184,22 @@ client.on("interactionCreate", async (interaction) => {
 
       const id = String(++contador).padStart(4, "0");
 
+      const nomeUser = interaction.user.username
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .slice(0, 10);
+
+      // 🔥 DEFINE TIPO PELO CARGO
+      let tipo = "investigacao";
+
+      if (interaction.member.roles.cache.has(POLICIA_CIVIL)) {
+        tipo = "investigacao-civil";
+      } else if (interaction.member.roles.cache.has(POLICIA_FEDERAL)) {
+        tipo = "investigacao-federal";
+      }
+
       const data = {
+        criador: interaction.user.id,
         solicitante: interaction.fields.getTextInputValue("solicitante"),
         alvo: interaction.fields.getTextInputValue("alvo"),
         motivo: interaction.fields.getTextInputValue("motivo"),
@@ -197,7 +222,7 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       const canal = await interaction.guild.channels.create({
-        name: `🔍-${id}`,
+        name: `🔍-${tipo}-${nomeUser}-${id}`,
         type: ChannelType.GuildText,
         parent: categoria.id,
         permissionOverwrites: [
@@ -215,7 +240,7 @@ client.on("interactionCreate", async (interaction) => {
 
       processos.set(canal.id, { ...data, msgId: msg.id, id });
 
-      /* ✅ BOTÕES CORRIGIDOS (SEM ERRO) */
+      /* BOTÕES */
 
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
@@ -229,9 +254,7 @@ client.on("interactionCreate", async (interaction) => {
         new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
       );
 
-      await canal.send({
-        components: [row1, row2]
-      });
+      await canal.send({ components: [row1, row2] });
 
       return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
@@ -265,12 +288,7 @@ client.on("interactionCreate", async (interaction) => {
 
       p.infiltrado = { nome, passaporte };
 
-      await interaction.channel.send(`
-🕵️ INFILTRAÇÃO DEFINIDA
-
-👤 ${nome}
-🆔 ${passaporte}
-      `);
+      await interaction.channel.send(`🕵️ INFILTRAÇÃO DEFINIDA\n👤 ${nome}\n🆔 ${passaporte}`);
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });

@@ -194,16 +194,20 @@ client.on("interactionCreate", async (interaction) => {
 📊 Status: Aguardando juiz
         `);
 
-      const row = new ActionRowBuilder().addComponents(
+      // ✅ CORREÇÃO AQUI (2 LINHAS DE BOTÕES)
+      const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Aprovar").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("recusar").setLabel("❌ Recusar").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("acusacao").setLabel("👮 Acusação").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Secondary)
+      );
+
+      const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
       );
 
-      await canal.send({ embeds: [embed], components: [row] });
+      await canal.send({ embeds: [embed], components: [row1, row2] });
 
       return interaction.reply({ content: `✔ Processo criado: ${canal}`, ephemeral: true });
     }
@@ -215,7 +219,6 @@ client.on("interactionCreate", async (interaction) => {
 
       if (!session) return;
 
-      // juiz
       if (["aprovar", "recusar", "encerrar"].includes(interaction.customId)) {
         if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
           return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });

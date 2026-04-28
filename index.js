@@ -26,6 +26,9 @@ const CARGO_JUIZ = "1498346869988921505";
 const CATEGORIA_PAINEL = "1498359349318258789";
 const CATEGORIA_PROCESSOS = "TRIBUNAL JURIDICO BELLA";
 
+// 🔥 fallback garantido
+const NOME_JUIZ_FIXO = "Nakamura Ofc";
+
 /* ================= CLIENT ================= */
 
 const client = new Client({
@@ -53,17 +56,26 @@ async function registerCommands() {
   );
 }
 
-/* ================= PAINEL COM JUIZ ================= */
+/* ================= JUIZ INTELIGENTE ================= */
+
+async function getJuiz(guild) {
+  try {
+    const role = guild.roles.cache.get(CARGO_JUIZ);
+
+    if (role && role.members.size > 0) {
+      return role.members.map(m => m.user.username).join(", ");
+    }
+
+  } catch (e) {}
+
+  return NOME_JUIZ_FIXO;
+}
+
+/* ================= PAINEL ================= */
 
 async function painel(guild) {
 
-  const membros = await guild.members.fetch();
-
-  const juizes = membros
-    .filter(m => m.roles.cache.has(CARGO_JUIZ))
-    .map(m => m.user.username);
-
-  const nomeJuiz = juizes.length > 0 ? juizes.join(", ") : "Não definido";
+  const nomeJuiz = await getJuiz(guild);
 
   return {
     embeds: [
@@ -86,7 +98,7 @@ async function painel(guild) {
 
 ━━━━━━━━━━━━━━━━
 
-👨‍⚖️ Juiz(es): **${nomeJuiz}**
+👨‍⚖️ Juiz: **${nomeJuiz}**
 
 🏛️ Tribunal ativo
         `)
@@ -144,7 +156,7 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    /* ABRIR MODAL */
+    /* MODAL */
     if (interaction.isButton() && interaction.customId === "abrir_processo") {
 
       if (cooldown.has(interaction.user.id)) {

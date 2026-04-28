@@ -16,41 +16,33 @@ import {
   PermissionsBitField
 } from "discord.js";
 
-/* =========================
-   CLIENTE
-========================= */
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
-/* =========================
-   CONFIG
-========================= */
+/* ================= CONFIG ================= */
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
 const CARGO_JUIZ = "1498346869988921505";
+const CANAL_PAINEL = "1498359349318258789";
+const CATEGORIA = "TRIBUNAL JURIDICO BELLA";
 
-/* =========================
-   MEMÓRIA
-========================= */
+/* ================= CLIENT ================= */
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
 
 const processos = new Map();
 let contador = 0;
 const cooldown = new Set();
 
-/* =========================
-   REGISTRAR COMANDO
-========================= */
+/* ================= COMANDO ================= */
 
 async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("tribunal")
-      .setDescription("Abrir painel do Jurídico Bella")
+      .setDescription("Enviar painel do Jurídico Bella")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -61,47 +53,34 @@ async function registerCommands() {
   );
 }
 
-/* =========================
-   PAINEL
-========================= */
+/* ================= PAINEL ================= */
 
 function painel() {
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle("⚖️ JURÍDICO BELLA")
+        .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
         .setColor("#d4af37")
-        .setDescription(`
-🏛️ Sistema Judicial
-
-📂 Criação de processos automatizada
-⚖️ Julgamento exclusivo por juízes
-📜 Defesa e acusação organizadas
-🔒 Controle do tribunal
-        `)
+        .setDescription("Clique abaixo para solicitar uma investigação.")
     ],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("abrir_processo")
-          .setLabel("📂 Abrir Processo")
-          .setStyle(ButtonStyle.Success)
+          .setLabel("📂 Solicitar Investigação")
+          .setStyle(ButtonStyle.Primary)
       )
     ]
   };
 }
 
-/* =========================
-   START
-========================= */
+/* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log(`⚖️ Jurídico Bella online: ${client.user.tag}`);
+  console.log(`⚖️ Jurídico Bella online`);
 });
 
-/* =========================
-   INTERAÇÕES
-========================= */
+/* ================= INTERAÇÕES ================= */
 
 client.on("interactionCreate", async (interaction) => {
   try {
@@ -109,11 +88,17 @@ client.on("interactionCreate", async (interaction) => {
     /* COMANDO */
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "tribunal") {
-        return interaction.reply(painel());
+
+        const canal = interaction.guild.channels.cache.get(CANAL_PAINEL);
+        if (!canal) return interaction.reply({ content: "❌ Canal não encontrado", ephemeral: true });
+
+        await canal.send(painel());
+
+        return interaction.reply({ content: "✔ Painel enviado", ephemeral: true });
       }
     }
 
-    /* ABRIR PROCESSO */
+    /* ABRIR MODAL */
     if (interaction.isButton() && interaction.customId === "abrir_processo") {
 
       if (cooldown.has(interaction.user.id)) {
@@ -124,20 +109,20 @@ client.on("interactionCreate", async (interaction) => {
       setTimeout(() => cooldown.delete(interaction.user.id), 3000);
 
       const modal = new ModalBuilder()
-        .setCustomId("form_processo")
-        .setTitle("📂 Novo Processo");
+        .setCustomId("modal_processo")
+        .setTitle("📂 Solicitação");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("solicitante")
-            .setLabel("Nome do Solicitante")
+            .setLabel("Seu nome")
             .setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("alvo")
-            .setLabel("Nome do Alvo")
+            .setLabel("Nome do alvo")
             .setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
@@ -145,6 +130,12 @@ client.on("interactionCreate", async (interaction) => {
             .setCustomId("motivo")
             .setLabel("Motivo")
             .setStyle(TextInputStyle.Paragraph)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("provas")
+            .setLabel("Link das provas")
+            .setStyle(TextInputStyle.Short)
         )
       );
 
@@ -152,74 +143,69 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     /* CRIAR PROCESSO */
-    if (interaction.isModalSubmit() && interaction.customId === "form_processo") {
+    if (interaction.isModalSubmit() && interaction.customId === "modal_processo") {
 
       const id = String(++contador).padStart(4, "0");
 
       const solicitante = interaction.fields.getTextInputValue("solicitante");
       const alvo = interaction.fields.getTextInputValue("alvo");
       const motivo = interaction.fields.getTextInputValue("motivo");
+      const provas = interaction.fields.getTextInputValue("provas");
+
+      let categoria = interaction.guild.channels.cache.find(
+        c => c.name === CATEGORIA && c.type === ChannelType.GuildCategory
+      );
+
+      if (!categoria) {
+        categoria = await interaction.guild.channels.create({
+          name: CATEGORIA,
+          type: ChannelType.GuildCategory
+        });
+      }
 
       const canal = await interaction.guild.channels.create({
-        name: `⚖️-processo-${id}`,
+        name: `📂-processo-${id}`,
         type: ChannelType.GuildText,
+        parent: categoria.id,
         permissionOverwrites: [
-          {
-            id: interaction.guild.id,
-            deny: [PermissionsBitField.Flags.ViewChannel]
-          },
-          {
-            id: interaction.user.id,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          },
-          {
-            id: CARGO_JUIZ,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          }
+          { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+          { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+          { id: CARGO_JUIZ, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
         ]
       });
 
       processos.set(canal.id, {
-        juiz: null,
+        status: "Aguardando",
         advogado: null,
-        acusacao: null,
-        status: "ativo"
+        acusacao: null
       });
 
       const embed = new EmbedBuilder()
-        .setTitle(`⚖️ PROCESSO #${id}`)
+        .setTitle(`📂 PROCESSO #${id}`)
         .setColor("#f1c40f")
         .setDescription(`
-👤 Solicitante: ${solicitante}
-🎯 Alvo: ${alvo}
+👤 ${solicitante}
+🎯 ${alvo}
 
-📄 Motivo:
-${motivo}
+📄 ${motivo}
 
-━━━━━━━━━━━━━━━━
-📌 Aguardando audiência
+📎 ${provas}
+
+📊 Status: Aguardando juiz
         `);
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aud_inicio").setLabel("⚖️ Audiência").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Aprovar").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("recusar").setLabel("❌ Recusar").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("acusacao").setLabel("👮 Acusação").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
       );
 
       await canal.send({ embeds: [embed], components: [row] });
 
-      return interaction.reply({
-        content: `✔ Processo criado: ${canal}`,
-        ephemeral: true
-      });
+      return interaction.reply({ content: `✔ Processo criado: ${canal}`, ephemeral: true });
     }
 
     const session = processos.get(interaction.channel?.id);
@@ -227,39 +213,38 @@ ${motivo}
     /* BOTÕES */
     if (interaction.isButton()) {
 
-      if (!session && interaction.customId !== "abrir_processo") {
-        return interaction.reply({ content: "❌ Este canal não é um processo.", ephemeral: true });
-      }
+      if (!session) return;
 
-      // AUDIÊNCIA
-      if (interaction.customId === "aud_inicio") {
+      // juiz
+      if (["aprovar", "recusar", "encerrar"].includes(interaction.customId)) {
         if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
           return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
         }
-
-        session.juiz = interaction.user.id;
-
-        return interaction.reply({ content: "⚖️ Audiência iniciada.", ephemeral: true });
       }
 
-      // ADVOGADO
+      if (interaction.customId === "aprovar") {
+        session.status = "Aprovado";
+        await interaction.channel.send("✔ APROVADO pelo juiz.");
+        return interaction.reply({ content: "✔ Aprovado.", ephemeral: true });
+      }
+
+      if (interaction.customId === "recusar") {
+        session.status = "Negado";
+        await interaction.channel.send("❌ NEGADO pelo juiz.");
+        return interaction.reply({ content: "✔ Recusado.", ephemeral: true });
+      }
+
       if (interaction.customId === "advogado") {
         session.advogado = interaction.user.id;
         return interaction.reply({ content: "✔ Advogado definido.", ephemeral: true });
       }
 
-      // ACUSAÇÃO
       if (interaction.customId === "acusacao") {
         session.acusacao = interaction.user.id;
         return interaction.reply({ content: "✔ Acusação definida.", ephemeral: true });
       }
 
-      // ENCERRAR
       if (interaction.customId === "encerrar") {
-        if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-          return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
-        }
-
         processos.delete(interaction.channel.id);
 
         await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
@@ -267,11 +252,9 @@ ${motivo}
         });
 
         await interaction.channel.send("🔒 Processo encerrado.");
-
         return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
       }
 
-      // DEFESA
       if (interaction.customId === "defesa") {
         const modal = new ModalBuilder()
           .setCustomId("defesa_modal")
@@ -295,31 +278,24 @@ ${motivo}
 
       const texto = interaction.fields.getTextInputValue("texto");
 
-      const embed = new EmbedBuilder()
-        .setTitle("📜 DEFESA")
-        .setColor("#3498db")
-        .setDescription(texto);
-
-      await interaction.channel.send({ embeds: [embed] });
+      await interaction.channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("📜 DEFESA")
+            .setColor("#3498db")
+            .setDescription(texto)
+        ]
+      });
 
       return interaction.reply({ content: "✔ Defesa enviada.", ephemeral: true });
     }
 
   } catch (err) {
     console.error(err);
-
-    if (!interaction.replied) {
-      return interaction.reply({
-        content: "❌ Erro interno.",
-        ephemeral: true
-      });
-    }
   }
 });
 
-/* =========================
-   START
-========================= */
+/* ================= START ================= */
 
 await registerCommands();
 client.login(TOKEN);

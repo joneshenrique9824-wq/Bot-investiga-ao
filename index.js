@@ -25,7 +25,6 @@ const GUILD_ID = process.env.GUILD_ID;
 const CARGO_JUIZ = "1498346869988921505";
 const POLICIA_CIVIL = "1498708612300669048";
 const POLICIA_FEDERAL = "1498708690390355988";
-const COMANDANTE = null; // se tiver cargo, coloca aqui
 
 const CATEGORIA = "INVESTIGACOES";
 
@@ -216,16 +215,23 @@ client.on("interactionCreate", async (interaction) => {
 
       processos.set(canal.id, { ...data, msgId: msg.id, id });
 
-      const botoes = new ActionRowBuilder().addComponents(
+      /* ✅ BOTÕES CORRIGIDOS (SEM ERRO) */
+
+      const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("pausar").setLabel("⏸️ Pausar").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("retomar").setLabel("▶️ Retomar").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("infiltrado").setLabel("🕵️ Definir Infiltrado").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("infiltrado").setLabel("🕵️ Infiltrado").setStyle(ButtonStyle.Primary)
+      );
+
+      const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
       );
 
-      await canal.send({ components: [botoes] });
+      await canal.send({
+        components: [row1, row2]
+      });
 
       return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
@@ -307,7 +313,6 @@ client.on("interactionCreate", async (interaction) => {
       if (interaction.customId === "encerrar") {
 
         await interaction.channel.send("📁 RELATÓRIO FINAL:");
-
         await interaction.channel.send(p.logs.join("\n") || "Sem registros");
 
         processos.delete(interaction.channel.id);

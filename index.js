@@ -23,11 +23,10 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
 const CARGO_JUIZ = "1498346869988921505";
-const CATEGORIA_PAINEL = "1498359349318258789";
-const CATEGORIA_PROCESSOS = "TRIBUNAL JURIDICO BELLA";
+const POLICIA_CIVIL = "1498708612300669048";
+const POLICIA_FEDERAL = "1498708690390355988";
 
-// 🔥 fallback garantido
-const NOME_JUIZ_FIXO = "Nakamura Ofc";
+const CATEGORIA = "INVESTIGACOES";
 
 /* ================= CLIENT ================= */
 
@@ -35,17 +34,16 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-const processos = new Map();
 let contador = 0;
-const cooldown = new Set();
+const processos = new Map();
 
 /* ================= COMANDO ================= */
 
 async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
-      .setName("tribunal")
-      .setDescription("Enviar painel do Jurídico Bella")
+      .setName("investigacao")
+      .setDescription("Abrir painel policial")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -56,57 +54,20 @@ async function registerCommands() {
   );
 }
 
-/* ================= JUIZ INTELIGENTE ================= */
-
-async function getJuiz(guild) {
-  try {
-    const role = guild.roles.cache.get(CARGO_JUIZ);
-
-    if (role && role.members.size > 0) {
-      return role.members.map(m => m.user.username).join(", ");
-    }
-
-  } catch (e) {}
-
-  return NOME_JUIZ_FIXO;
-}
-
 /* ================= PAINEL ================= */
 
-async function painel(guild) {
-
-  const nomeJuiz = await getJuiz(guild);
-
+function painel() {
   return {
     embeds: [
       new EmbedBuilder()
         .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
         .setColor("#d4af37")
-        .setDescription(`
-🏛️ SISTEMA JUDICIAL RP
-
-👨‍⚖️ Nenhuma investigação sem autorização.
-
-📌 Solicitação obrigatória:
-• Solicitante
-• Alvo
-• Motivo
-• Provas
-
-⚖️ Análise do juiz obrigatória  
-🔨 Decisão formal  
-
-━━━━━━━━━━━━━━━━
-
-👨‍⚖️ Juiz: **${nomeJuiz}**
-
-🏛️ Tribunal ativo
-        `)
+        .setDescription("Acesso exclusivo da Polícia Civil e Federal.")
     ],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("abrir_processo")
+          .setCustomId("abrir")
           .setLabel("📂 Solicitar Investigação")
           .setStyle(ButtonStyle.Primary)
       )
@@ -117,7 +78,7 @@ async function painel(guild) {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log("⚖️ Jurídico Bella online");
+  console.log("🚔 Sistema policial online");
 });
 
 /* ================= INTERAÇÕES ================= */
@@ -127,69 +88,48 @@ client.on("interactionCreate", async (interaction) => {
 
     /* COMANDO */
     if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "tribunal") {
-
-        const categoria = await interaction.guild.channels.fetch(CATEGORIA_PAINEL).catch(() => null);
-
-        if (!categoria || categoria.type !== ChannelType.GuildCategory) {
-          return interaction.reply({ content: "❌ Categoria inválida.", ephemeral: true });
-        }
-
-        let canal = interaction.guild.channels.cache.find(
-          c => c.name === "📌・painel-investigacao" && c.parentId === categoria.id
-        );
-
-        if (!canal) {
-          canal = await interaction.guild.channels.create({
-            name: "📌・painel-investigacao",
-            type: ChannelType.GuildText,
-            parent: categoria.id
-          });
-        }
-
-        await canal.send(await painel(interaction.guild));
-
-        return interaction.reply({
-          content: `✔ Painel enviado em ${canal}`,
-          ephemeral: true
-        });
+      if (interaction.commandName === "investigacao") {
+        return interaction.reply(painel());
       }
     }
 
-    /* MODAL */
-    if (interaction.isButton() && interaction.customId === "abrir_processo") {
+    /* ABRIR MODAL */
+    if (interaction.isButton() && interaction.customId === "abrir") {
 
-      if (cooldown.has(interaction.user.id)) {
-        return interaction.reply({ content: "⏳ Aguarde...", ephemeral: true });
+      if (
+        !interaction.member.roles.cache.has(POLICIA_CIVIL) &&
+        !interaction.member.roles.cache.has(POLICIA_FEDERAL)
+      ) {
+        return interaction.reply({
+          content: "❌ Apenas Polícia.",
+          ephemeral: true
+        });
       }
 
-      cooldown.add(interaction.user.id);
-      setTimeout(() => cooldown.delete(interaction.user.id), 3000);
-
       const modal = new ModalBuilder()
-        .setCustomId("modal_processo")
-        .setTitle("📂 Solicitação");
+        .setCustomId("form")
+        .setTitle("📂 Solicitação de Investigação");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante").setLabel("Seu nome").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante").setLabel("Seu Nome / ID").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("alvo").setLabel("Nome do alvo").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("alvo").setLabel("Alvo Nome / ID").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("provas").setLabel("Link das provas").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("provas").setLabel("Link das Provas").setStyle(TextInputStyle.Short)
         )
       );
 
       return interaction.showModal(modal);
     }
 
-    /* CRIAR PROCESSO */
-    if (interaction.isModalSubmit() && interaction.customId === "modal_processo") {
+    /* CRIAR CANAL */
+    if (interaction.isModalSubmit() && interaction.customId === "form") {
 
       const id = String(++contador).padStart(4, "0");
 
@@ -199,127 +139,74 @@ client.on("interactionCreate", async (interaction) => {
       const provas = interaction.fields.getTextInputValue("provas");
 
       let categoria = interaction.guild.channels.cache.find(
-        c => c.name === CATEGORIA_PROCESSOS && c.type === ChannelType.GuildCategory
+        c => c.name === CATEGORIA && c.type === ChannelType.GuildCategory
       );
 
       if (!categoria) {
         categoria = await interaction.guild.channels.create({
-          name: CATEGORIA_PROCESSOS,
+          name: CATEGORIA,
           type: ChannelType.GuildCategory
         });
       }
 
       const canal = await interaction.guild.channels.create({
-        name: `📂-processo-${id}`,
+        name: `🔍-investigacao-${id}`,
         type: ChannelType.GuildText,
         parent: categoria.id,
         permissionOverwrites: [
           { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
           { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-          { id: CARGO_JUIZ, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+          { id: CARGO_JUIZ, allow: [PermissionsBitField.Flags.ViewChannel] },
+          { id: POLICIA_CIVIL, allow: [PermissionsBitField.Flags.ViewChannel] },
+          { id: POLICIA_FEDERAL, allow: [PermissionsBitField.Flags.ViewChannel] }
         ]
       });
 
-      processos.set(canal.id, { status: "Aguardando" });
-
       const embed = new EmbedBuilder()
-        .setTitle(`📂 PROCESSO #${id}`)
+        .setTitle(`🔍 INVESTIGAÇÃO #${id}`)
         .setColor("#f1c40f")
         .setDescription(`
 👤 ${solicitante}
+
 🎯 ${alvo}
 
 📄 ${motivo}
 
 📎 ${provas}
 
-📊 Status: Aguardando juiz
+📊 Status: Aguardando decisão judicial
         `);
 
-      const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Aprovar").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("recusar").setLabel("❌ Recusar").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Secondary)
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar").setStyle(ButtonStyle.Danger)
       );
 
-      const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
-      );
+      await canal.send({ embeds: [embed], components: [row] });
 
-      await canal.send({ embeds: [embed], components: [row1, row2] });
+      processos.set(canal.id, true);
 
-      return interaction.reply({ content: `✔ Processo criado: ${canal}`, ephemeral: true });
+      return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
 
-    const session = processos.get(interaction.channel?.id);
-
-    /* BOTÕES */
+    /* BOTÕES DO JUIZ */
     if (interaction.isButton()) {
 
-      if (!session) return;
+      if (!processos.has(interaction.channel.id)) return;
 
-      if (["aprovar", "recusar", "encerrar"].includes(interaction.customId)) {
-        if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-          return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
-        }
+      if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
+        return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
       }
 
       if (interaction.customId === "aprovar") {
-        session.status = "Aprovado";
-        await interaction.channel.send("✔ APROVADO pelo juiz.");
+        await interaction.channel.send("✔ AUTORIZAÇÃO DEFERIDA pelo juiz.");
         return interaction.reply({ content: "✔ Aprovado.", ephemeral: true });
       }
 
-      if (interaction.customId === "recusar") {
-        session.status = "Negado";
-        await interaction.channel.send("❌ NEGADO pelo juiz.");
-        return interaction.reply({ content: "✔ Recusado.", ephemeral: true });
+      if (interaction.customId === "negar") {
+        await interaction.channel.send("❌ AUTORIZAÇÃO INDEFERIDA pelo juiz.");
+        return interaction.reply({ content: "✔ Negado.", ephemeral: true });
       }
-
-      if (interaction.customId === "encerrar") {
-        processos.delete(interaction.channel.id);
-
-        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-          SendMessages: false
-        });
-
-        await interaction.channel.send("🔒 Processo encerrado.");
-        return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
-      }
-
-      if (interaction.customId === "defesa") {
-        const modal = new ModalBuilder()
-          .setCustomId("defesa_modal")
-          .setTitle("📜 Defesa");
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("texto")
-              .setLabel("Escreva sua defesa")
-              .setStyle(TextInputStyle.Paragraph)
-          )
-        );
-
-        return interaction.showModal(modal);
-      }
-    }
-
-    /* DEFESA */
-    if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
-
-      const texto = interaction.fields.getTextInputValue("texto");
-
-      await interaction.channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("📜 DEFESA")
-            .setColor("#3498db")
-            .setDescription(texto)
-        ]
-      });
-
-      return interaction.reply({ content: "✔ Defesa enviada.", ephemeral: true });
     }
 
   } catch (err) {

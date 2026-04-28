@@ -23,7 +23,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
 const CARGO_JUIZ = "1498346869988921505";
-const CATEGORIA_PAINEL = "1498359349318258789"; // categoria
+const CATEGORIA_PAINEL = "1498359349318258789";
 const CATEGORIA_PROCESSOS = "TRIBUNAL JURIDICO BELLA";
 
 /* ================= CLIENT ================= */
@@ -53,15 +53,43 @@ async function registerCommands() {
   );
 }
 
-/* ================= PAINEL ================= */
+/* ================= PAINEL COM JUIZ ================= */
 
-function painel() {
+async function painel(guild) {
+
+  const membros = await guild.members.fetch();
+
+  const juizes = membros
+    .filter(m => m.roles.cache.has(CARGO_JUIZ))
+    .map(m => m.user.username);
+
+  const nomeJuiz = juizes.length > 0 ? juizes.join(", ") : "Não definido";
+
   return {
     embeds: [
       new EmbedBuilder()
         .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
         .setColor("#d4af37")
-        .setDescription("Clique abaixo para solicitar uma investigação.")
+        .setDescription(`
+🏛️ SISTEMA JUDICIAL RP
+
+👨‍⚖️ Nenhuma investigação sem autorização.
+
+📌 Solicitação obrigatória:
+• Solicitante
+• Alvo
+• Motivo
+• Provas
+
+⚖️ Análise do juiz obrigatória  
+🔨 Decisão formal  
+
+━━━━━━━━━━━━━━━━
+
+👨‍⚖️ Juiz(es): **${nomeJuiz}**
+
+🏛️ Tribunal ativo
+        `)
     ],
     components: [
       new ActionRowBuilder().addComponents(
@@ -92,10 +120,7 @@ client.on("interactionCreate", async (interaction) => {
         const categoria = await interaction.guild.channels.fetch(CATEGORIA_PAINEL).catch(() => null);
 
         if (!categoria || categoria.type !== ChannelType.GuildCategory) {
-          return interaction.reply({
-            content: "❌ Categoria inválida.",
-            ephemeral: true
-          });
+          return interaction.reply({ content: "❌ Categoria inválida.", ephemeral: true });
         }
 
         let canal = interaction.guild.channels.cache.find(
@@ -110,7 +135,7 @@ client.on("interactionCreate", async (interaction) => {
           });
         }
 
-        await canal.send(painel());
+        await canal.send(await painel(interaction.guild));
 
         return interaction.reply({
           content: `✔ Painel enviado em ${canal}`,

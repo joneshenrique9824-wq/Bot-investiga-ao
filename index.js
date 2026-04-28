@@ -22,13 +22,13 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
+// ✅ IDS ATUALIZADOS
 const CARGO_JUIZ = "1497405730414661642";
 const POLICIA_CIVIL = "1498747886165426246";
 const POLICIA_FEDERAL = "1498747892465270824";
 
 const CAT_CIVIL = "INVESTIGACOES CIVIL";
 const CAT_FEDERAL = "INVESTIGACOES FEDERAL";
-const CAT_ARQUIVO = "📁 INVESTIGAÇÕES ENCERRADAS";
 
 /* ================= CLIENT ================= */
 
@@ -84,7 +84,7 @@ async function registerCommands() {
       .setDescription("Abrir painel de investigação")
   ].map(c => c.toJSON());
 
-  const rest = new REST({ version: "10" }).setToken(TOKEN);
+  const rest = new REST({ version: 10 }).setToken(TOKEN);
 
   await rest.put(
     Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
@@ -240,41 +240,6 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
 
-    /* INFILTRADO */
-    if (interaction.isButton() && interaction.customId === "infiltrado") {
-      const modal = new ModalBuilder()
-        .setCustomId("modal_infiltrado")
-        .setTitle("🕵️ Infiltrado");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
-        )
-      );
-
-      return interaction.showModal(modal);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === "modal_infiltrado") {
-      const p = processos.get(interaction.channel.id);
-      if (!p) return interaction.reply({ content: "❌ Processo não encontrado.", ephemeral: true });
-
-      const nome = interaction.fields.getTextInputValue("nome");
-      const passaporte = interaction.fields.getTextInputValue("passaporte");
-
-      p.infiltrado = { nome, passaporte };
-
-      const msg = await interaction.channel.messages.fetch(p.msgId);
-      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
-
-      await interaction.channel.send(`🕵️ Infiltrado definido: ${nome} (${passaporte})`);
-
-      return interaction.reply({ content: "✔ Infiltrado registrado.", ephemeral: true });
-    }
-
     /* BOTÕES */
     if (interaction.isButton()) {
 
@@ -297,49 +262,49 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.channel.send(`❌ Negado pelo juiz ${juiz}`);
       }
 
+      /* ================= ENCERRAR (AJUSTADO) ================= */
+
       if (interaction.customId === "encerrar") {
 
         p.status = "Encerrado";
 
-        // 🔒 BLOQUEAR CHAT
-        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-          SendMessages: false
-        });
-
-        await interaction.channel.permissionOverwrites.edit(POLICIA_CIVIL, {
-          SendMessages: false
-        });
-
-        await interaction.channel.permissionOverwrites.edit(POLICIA_FEDERAL, {
-          SendMessages: false
-        });
-
-        await interaction.channel.permissionOverwrites.edit(CARGO_JUIZ, {
-          SendMessages: true
-        });
-
-        // 📁 MOVER PARA ARQUIVO
-        let catArquivo = interaction.guild.channels.cache.find(
-          c => c.name === CAT_ARQUIVO && c.type === ChannelType.GuildCategory
-        );
-
-        if (!catArquivo) {
-          catArquivo = await interaction.guild.channels.create({
-            name: CAT_ARQUIVO,
-            type: ChannelType.GuildCategory
-          });
-        }
-
-        await interaction.channel.setParent(catArquivo.id);
-
-        // 🔒 RENOMEAR
-        await interaction.channel.setName(`🔒-encerrado-${p.id}`);
+        // 🔒 BLOQUEIA TODO MUNDO
+        await interaction.channel.permissionOverwrites.set([
+          {
+            id: interaction.guild.id,
+            deny: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          },
+          {
+            id: POLICIA_CIVIL,
+            deny: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          },
+          {
+            id: POLICIA_FEDERAL,
+            deny: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          },
+          {
+            id: CARGO_JUIZ,
+            allow: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          }
+        ]);
 
         processos.delete(interaction.channel.id);
 
-        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}\n🚫 Apenas juiz pode falar.`);
+        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}\n👁️ Somente o juiz pode visualizar e falar neste canal.`);
 
-        return interaction.reply({ content: "✔ Investigação encerrada.", ephemeral: true });
+        return interaction.reply({ content: "✔ Investigação encerrada com acesso restrito.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);

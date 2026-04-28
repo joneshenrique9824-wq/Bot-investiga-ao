@@ -25,6 +25,7 @@ const GUILD_ID = process.env.GUILD_ID;
 const CARGO_JUIZ = "1498346869988921505";
 const POLICIA_CIVIL = "1498708612300669048";
 const POLICIA_FEDERAL = "1498708690390355988";
+const COMANDANTE = null; // se tiver cargo, coloca aqui
 
 const CATEGORIA = "INVESTIGACOES";
 
@@ -59,6 +60,12 @@ function gerarEmbed(id, data) {
 📄 ${data.motivo}
 
 📎 ${data.provas}
+
+🕵️ Infiltrado: ${
+  data.infiltrado
+    ? `${data.infiltrado.nome} (${data.infiltrado.passaporte})`
+    : "Não definido"
+}
 
 📊 Status: ${data.status}
 ⏱️ Tempo: ${formatTempo(Date.now() - data.inicio)}
@@ -116,7 +123,7 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log("🚨 Sistema de Investigação ONLINE");
+  console.log("🚨 Sistema RP Investigação ONLINE");
 });
 
 /* ================= INTERAÇÕES ================= */
@@ -163,7 +170,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* CRIAR */
+    /* CRIAR INVESTIGAÇÃO */
     if (interaction.isModalSubmit() && interaction.customId === "form") {
 
       const id = String(++contador).padStart(4, "0");
@@ -175,7 +182,8 @@ client.on("interactionCreate", async (interaction) => {
         provas: interaction.fields.getTextInputValue("provas"),
         status: "Aguardando",
         inicio: Date.now(),
-        logs: []
+        logs: [],
+        infiltrado: null
       };
 
       let categoria = interaction.guild.channels.cache.find(
@@ -209,16 +217,59 @@ client.on("interactionCreate", async (interaction) => {
       processos.set(canal.id, { ...data, msgId: msg.id, id });
 
       const botoes = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar Investigação").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar Investigação").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("pausar").setLabel("⏸️ Pausar Investigação").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("retomar").setLabel("▶️ Retomar Investigação").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar Caso").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("pausar").setLabel("⏸️ Pausar").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("retomar").setLabel("▶️ Retomar").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("infiltrado").setLabel("🕵️ Definir Infiltrado").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
       );
 
       await canal.send({ components: [botoes] });
 
       return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
+    }
+
+    /* INFILTRADO */
+    if (interaction.isButton() && interaction.customId === "infiltrado") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("modal_infiltrado")
+        .setTitle("🕵️ Definir Infiltrado");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === "modal_infiltrado") {
+
+      const p = processos.get(interaction.channel.id);
+      if (!p) return;
+
+      const nome = interaction.fields.getTextInputValue("nome");
+      const passaporte = interaction.fields.getTextInputValue("passaporte");
+
+      p.infiltrado = { nome, passaporte };
+
+      await interaction.channel.send(`
+🕵️ INFILTRAÇÃO DEFINIDA
+
+👤 ${nome}
+🆔 ${passaporte}
+      `);
+
+      const msg = await interaction.channel.messages.fetch(p.msgId);
+      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
+
+      return interaction.reply({ content: "✔ Infiltrado definido.", ephemeral: true });
     }
 
     /* BOTÕES */
@@ -228,60 +279,40 @@ client.on("interactionCreate", async (interaction) => {
       if (!p) return;
 
       if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-        return interaction.reply({ content: "❌ Apenas o Juiz pode executar.", ephemeral: true });
+        return interaction.reply({ content: "❌ Apenas Juiz.", ephemeral: true });
       }
 
       const juiz = `<@${interaction.user.id}>`;
 
       if (interaction.customId === "aprovar") {
         p.status = "Em andamento";
-        p.logs.push(`AUTORIZADA por ${interaction.user.username}`);
-
-        await interaction.channel.send(`🔨 **AUTORIZAÇÃO DEFERIDA**\n👨‍⚖️ ${juiz}`);
+        await interaction.channel.send(`✔ AUTORIZADO por ${juiz}`);
       }
 
       if (interaction.customId === "negar") {
         p.status = "Negado";
-        p.logs.push(`NEGADA por ${interaction.user.username}`);
-
-        await interaction.channel.send(`❌ **AUTORIZAÇÃO INDEFERIDA**\n👨‍⚖️ ${juiz}`);
+        await interaction.channel.send(`❌ NEGADO por ${juiz}`);
       }
 
       if (interaction.customId === "pausar") {
         p.status = "Pausado";
-        p.logs.push(`PAUSADA por ${interaction.user.username}`);
-
-        await interaction.channel.send(`⏸️ Investigação pausada por ${juiz}`);
+        await interaction.channel.send(`⏸️ PAUSADO por ${juiz}`);
       }
 
       if (interaction.customId === "retomar") {
         p.status = "Em andamento";
-        p.logs.push(`RETOMADA por ${interaction.user.username}`);
-
-        await interaction.channel.send(`▶️ Investigação retomada por ${juiz}`);
+        await interaction.channel.send(`▶️ RETOMADO por ${juiz}`);
       }
 
       if (interaction.customId === "encerrar") {
 
-        p.status = "Encerrado";
+        await interaction.channel.send("📁 RELATÓRIO FINAL:");
 
-        await interaction.channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("📁 RELATÓRIO FINAL")
-              .setColor("#2ecc71")
-              .setDescription(`
-📊 Status: ${p.status}
-
-📜 Histórico:
-${p.logs.map(l => `• ${l}`).join("\n")}
-              `)
-          ]
-        });
+        await interaction.channel.send(p.logs.join("\n") || "Sem registros");
 
         processos.delete(interaction.channel.id);
 
-        return interaction.reply({ content: "✔ Caso encerrado.", ephemeral: true });
+        return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);

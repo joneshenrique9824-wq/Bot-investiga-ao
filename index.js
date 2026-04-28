@@ -56,7 +56,7 @@ function gerarEmbed(id, data) {
     .setDescription(`
 👮 Criado por: <@${data.criador}>
 
-👤 ${data.solicitante}
+👤 ${data.solicitante_nome} | ID: ${data.solicitante_id}
 🎯 ${data.alvo}
 
 📄 ${data.motivo}
@@ -106,6 +106,7 @@ function painel() {
 
 📌 Obrigatório:
 • Solicitante
+• ID
 • Alvo
 • Motivo
 • Provas
@@ -133,25 +134,21 @@ client.once("clientReady", () => {
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    /* COMANDO */
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "investigacao") {
         return interaction.reply(painel());
       }
     }
 
-    /* ABRIR MODAL */
+    /* ================= ABRIR ================= */
+
     if (interaction.isButton() && interaction.customId === "abrir") {
 
       let tipo = null;
 
-      if (interaction.member.roles.cache.has(POLICIA_CIVIL)) {
-        tipo = "civil";
-      } else if (interaction.member.roles.cache.has(POLICIA_FEDERAL)) {
-        tipo = "federal";
-      } else {
-        return interaction.reply({ content: "❌ Apenas Polícia.", ephemeral: true });
-      }
+      if (interaction.member.roles.cache.has(POLICIA_CIVIL)) tipo = "civil";
+      else if (interaction.member.roles.cache.has(POLICIA_FEDERAL)) tipo = "federal";
+      else return interaction.reply({ content: "❌ Apenas Polícia.", ephemeral: true });
 
       const modal = new ModalBuilder()
         .setCustomId(`form_${tipo}`)
@@ -159,10 +156,13 @@ client.on("interactionCreate", async (interaction) => {
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante").setLabel("Solicitante").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante_nome").setLabel("Nome do Solicitante").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("alvo").setLabel("Alvo").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante_id").setLabel("ID do Solicitante").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("alvo").setLabel("Pessoa / Facção").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph)
@@ -175,20 +175,17 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* CRIAR INVESTIGAÇÃO */
-    if (interaction.isModalSubmit()) {
+    /* ================= CRIAR ================= */
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
       const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
       const id = String(++contador).padStart(4, "0");
 
-      const nomeUser = interaction.user.username
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "")
-        .slice(0, 8);
-
       const data = {
         criador: interaction.user.id,
-        solicitante: interaction.fields.getTextInputValue("solicitante"),
+        solicitante_nome: interaction.fields.getTextInputValue("solicitante_nome"),
+        solicitante_id: interaction.fields.getTextInputValue("solicitante_id"),
         alvo: interaction.fields.getTextInputValue("alvo"),
         motivo: interaction.fields.getTextInputValue("motivo"),
         provas: interaction.fields.getTextInputValue("provas"),
@@ -218,7 +215,7 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       const canal = await interaction.guild.channels.create({
-        name: `🔍-${tipo}-${nomeUser}-${id}`,
+        name: `🔍-${tipo}-${id}`,
         type: ChannelType.GuildText,
         parent: categoria.id,
         lockPermissions: true
@@ -228,12 +225,9 @@ client.on("interactionCreate", async (interaction) => {
 
       processos.set(canal.id, { ...data, msgId: msg.id, id });
 
-      /* BOTÕES (CORRIGIDO) */
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("pausar").setLabel("⏸️ Pausar").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("retomar").setLabel("▶️ Retomar").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("infiltrado").setLabel("🕵️ Infiltrado").setStyle(ButtonStyle.Primary)
       );
 
@@ -246,8 +240,10 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
 
-    /* INFILTRADO */
+    /* ================= INFILTRADO (CORRIGIDO) ================= */
+
     if (interaction.isButton() && interaction.customId === "infiltrado") {
+
       const modal = new ModalBuilder()
         .setCustomId("modal_infiltrado")
         .setTitle("🕵️ Infiltrado");
@@ -265,21 +261,25 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.isModalSubmit() && interaction.customId === "modal_infiltrado") {
-      const p = processos.get(interaction.channel.id);
-      if (!p) return;
 
-      p.infiltrado = {
-        nome: interaction.fields.getTextInputValue("nome"),
-        passaporte: interaction.fields.getTextInputValue("passaporte")
-      };
+      const p = processos.get(interaction.channel.id);
+      if (!p) return interaction.reply({ content: "❌ Processo não encontrado.", ephemeral: true });
+
+      const nome = interaction.fields.getTextInputValue("nome");
+      const passaporte = interaction.fields.getTextInputValue("passaporte");
+
+      p.infiltrado = { nome, passaporte };
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
-      return interaction.reply({ content: "✔ Infiltrado definido.", ephemeral: true });
+      await interaction.channel.send(`🕵️ Infiltrado definido: ${nome} (${passaporte})`);
+
+      return interaction.reply({ content: "✔ Infiltrado registrado.", ephemeral: true });
     }
 
-    /* BOTÕES PRINCIPAIS */
+    /* ================= BOTÕES ================= */
+
     if (interaction.isButton()) {
 
       const p = processos.get(interaction.channel.id);
@@ -291,18 +291,21 @@ client.on("interactionCreate", async (interaction) => {
 
       const juiz = `<@${interaction.user.id}>`;
 
-      if (interaction.customId === "aprovar") p.status = "Em andamento";
-      if (interaction.customId === "negar") p.status = "Negado";
-      if (interaction.customId === "pausar") p.status = "Pausado";
-      if (interaction.customId === "retomar") p.status = "Em andamento";
+      if (interaction.customId === "aprovar") {
+        p.status = "Em andamento";
+        await interaction.channel.send(`✔ APROVADO pelo juiz ${juiz}`);
+      }
+
+      if (interaction.customId === "negar") {
+        p.status = "Negado";
+        await interaction.channel.send(`❌ NEGADO pelo juiz ${juiz}`);
+      }
 
       if (interaction.customId === "encerrar") {
         processos.delete(interaction.channel.id);
-        await interaction.channel.send("🔒 Investigação encerrada.");
+        await interaction.channel.send(`🔒 ENCERRADO pelo juiz ${juiz}`);
         return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
       }
-
-      await interaction.channel.send(`⚖️ Ação realizada por ${juiz}`);
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });

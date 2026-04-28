@@ -23,8 +23,8 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
 const CARGO_JUIZ = "1498346869988921505";
-const CANAL_PAINEL = "1498359349318258789";
-const CATEGORIA = "TRIBUNAL JURIDICO BELLA";
+const CATEGORIA_PAINEL = "1498359349318258789"; // categoria
+const CATEGORIA_PROCESSOS = "TRIBUNAL JURIDICO BELLA";
 
 /* ================= CLIENT ================= */
 
@@ -77,7 +77,7 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log(`⚖️ Jurídico Bella online`);
+  console.log("⚖️ Jurídico Bella online");
 });
 
 /* ================= INTERAÇÕES ================= */
@@ -89,12 +89,33 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "tribunal") {
 
-        const canal = interaction.guild.channels.cache.get(CANAL_PAINEL);
-        if (!canal) return interaction.reply({ content: "❌ Canal não encontrado", ephemeral: true });
+        const categoria = await interaction.guild.channels.fetch(CATEGORIA_PAINEL).catch(() => null);
+
+        if (!categoria || categoria.type !== ChannelType.GuildCategory) {
+          return interaction.reply({
+            content: "❌ Categoria inválida.",
+            ephemeral: true
+          });
+        }
+
+        let canal = interaction.guild.channels.cache.find(
+          c => c.name === "📌・painel-investigacao" && c.parentId === categoria.id
+        );
+
+        if (!canal) {
+          canal = await interaction.guild.channels.create({
+            name: "📌・painel-investigacao",
+            type: ChannelType.GuildText,
+            parent: categoria.id
+          });
+        }
 
         await canal.send(painel());
 
-        return interaction.reply({ content: "✔ Painel enviado", ephemeral: true });
+        return interaction.reply({
+          content: `✔ Painel enviado em ${canal}`,
+          ephemeral: true
+        });
       }
     }
 
@@ -114,28 +135,16 @@ client.on("interactionCreate", async (interaction) => {
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("solicitante")
-            .setLabel("Seu nome")
-            .setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante").setLabel("Seu nome").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("alvo")
-            .setLabel("Nome do alvo")
-            .setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("alvo").setLabel("Nome do alvo").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("motivo")
-            .setLabel("Motivo")
-            .setStyle(TextInputStyle.Paragraph)
+          new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("provas")
-            .setLabel("Link das provas")
-            .setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("provas").setLabel("Link das provas").setStyle(TextInputStyle.Short)
         )
       );
 
@@ -153,12 +162,12 @@ client.on("interactionCreate", async (interaction) => {
       const provas = interaction.fields.getTextInputValue("provas");
 
       let categoria = interaction.guild.channels.cache.find(
-        c => c.name === CATEGORIA && c.type === ChannelType.GuildCategory
+        c => c.name === CATEGORIA_PROCESSOS && c.type === ChannelType.GuildCategory
       );
 
       if (!categoria) {
         categoria = await interaction.guild.channels.create({
-          name: CATEGORIA,
+          name: CATEGORIA_PROCESSOS,
           type: ChannelType.GuildCategory
         });
       }
@@ -174,11 +183,7 @@ client.on("interactionCreate", async (interaction) => {
         ]
       });
 
-      processos.set(canal.id, {
-        status: "Aguardando",
-        advogado: null,
-        acusacao: null
-      });
+      processos.set(canal.id, { status: "Aguardando" });
 
       const embed = new EmbedBuilder()
         .setTitle(`📂 PROCESSO #${id}`)
@@ -194,12 +199,9 @@ client.on("interactionCreate", async (interaction) => {
 📊 Status: Aguardando juiz
         `);
 
-      // ✅ CORREÇÃO AQUI (2 LINHAS DE BOTÕES)
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Aprovar").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("recusar").setLabel("❌ Recusar").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("advogado").setLabel("👨‍💼 Advogado").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("acusacao").setLabel("👮 Acusação").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("defesa").setLabel("📜 Defesa").setStyle(ButtonStyle.Secondary)
       );
 
@@ -235,16 +237,6 @@ client.on("interactionCreate", async (interaction) => {
         session.status = "Negado";
         await interaction.channel.send("❌ NEGADO pelo juiz.");
         return interaction.reply({ content: "✔ Recusado.", ephemeral: true });
-      }
-
-      if (interaction.customId === "advogado") {
-        session.advogado = interaction.user.id;
-        return interaction.reply({ content: "✔ Advogado definido.", ephemeral: true });
-      }
-
-      if (interaction.customId === "acusacao") {
-        session.acusacao = interaction.user.id;
-        return interaction.reply({ content: "✔ Acusação definida.", ephemeral: true });
       }
 
       if (interaction.customId === "encerrar") {

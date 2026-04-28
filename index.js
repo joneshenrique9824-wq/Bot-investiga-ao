@@ -22,13 +22,13 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-// ✅ IDS ATUALIZADOS
 const CARGO_JUIZ = "1497405730414661642";
 const POLICIA_CIVIL = "1498747886165426246";
 const POLICIA_FEDERAL = "1498747892465270824";
 
 const CAT_CIVIL = "INVESTIGACOES CIVIL";
 const CAT_FEDERAL = "INVESTIGACOES FEDERAL";
+const CAT_ARQUIVO = "📁 INVESTIGAÇÕES ENCERRADAS";
 
 /* ================= CLIENT ================= */
 
@@ -294,13 +294,52 @@ client.on("interactionCreate", async (interaction) => {
 
       if (interaction.customId === "negar") {
         p.status = "Negado";
-        await interaction.channel.send(`❌ Investigação encerrada pelo juiz ${juiz}`);
+        await interaction.channel.send(`❌ Negado pelo juiz ${juiz}`);
       }
 
       if (interaction.customId === "encerrar") {
+
+        p.status = "Encerrado";
+
+        // 🔒 BLOQUEAR CHAT
+        await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
+          SendMessages: false
+        });
+
+        await interaction.channel.permissionOverwrites.edit(POLICIA_CIVIL, {
+          SendMessages: false
+        });
+
+        await interaction.channel.permissionOverwrites.edit(POLICIA_FEDERAL, {
+          SendMessages: false
+        });
+
+        await interaction.channel.permissionOverwrites.edit(CARGO_JUIZ, {
+          SendMessages: true
+        });
+
+        // 📁 MOVER PARA ARQUIVO
+        let catArquivo = interaction.guild.channels.cache.find(
+          c => c.name === CAT_ARQUIVO && c.type === ChannelType.GuildCategory
+        );
+
+        if (!catArquivo) {
+          catArquivo = await interaction.guild.channels.create({
+            name: CAT_ARQUIVO,
+            type: ChannelType.GuildCategory
+          });
+        }
+
+        await interaction.channel.setParent(catArquivo.id);
+
+        // 🔒 RENOMEAR
+        await interaction.channel.setName(`🔒-encerrado-${p.id}`);
+
         processos.delete(interaction.channel.id);
-        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}`);
-        return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
+
+        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}\n🚫 Apenas juiz pode falar.`);
+
+        return interaction.reply({ content: "✔ Investigação encerrada.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);

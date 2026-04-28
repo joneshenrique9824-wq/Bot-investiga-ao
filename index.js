@@ -37,7 +37,7 @@ const client = new Client({
 let contador = 0;
 const processos = new Map();
 
-/* ================= FUNÇÃO TEMPO ================= */
+/* ================= TEMPO ================= */
 
 function formatTempo(ms) {
   const s = Math.floor(ms / 1000) % 60;
@@ -46,7 +46,7 @@ function formatTempo(ms) {
   return `${h}h ${m}m ${s}s`;
 }
 
-/* ================= EMBED DINÂMICO ================= */
+/* ================= EMBED ================= */
 
 function gerarEmbed(id, data) {
   return new EmbedBuilder()
@@ -71,7 +71,7 @@ async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("investigacao")
-      .setDescription("Abrir painel RP máximo")
+      .setDescription("Abrir painel de investigação")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -116,27 +116,29 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log("🚨 SISTEMA MÁXIMO ONLINE");
+  console.log("🚨 Sistema de Investigação ONLINE");
 });
 
-/* ================= INTERAÇÃO ================= */
+/* ================= INTERAÇÕES ================= */
 
 client.on("interactionCreate", async (interaction) => {
   try {
 
+    /* COMANDO */
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "investigacao") {
         return interaction.reply(painel());
       }
     }
 
+    /* ABRIR */
     if (interaction.isButton() && interaction.customId === "abrir") {
 
       if (
         !interaction.member.roles.cache.has(POLICIA_CIVIL) &&
         !interaction.member.roles.cache.has(POLICIA_FEDERAL)
       ) {
-        return interaction.reply({ content: "❌ Apenas polícia.", ephemeral: true });
+        return interaction.reply({ content: "❌ Apenas Polícia.", ephemeral: true });
       }
 
       const modal = new ModalBuilder()
@@ -145,7 +147,7 @@ client.on("interactionCreate", async (interaction) => {
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante").setLabel("Seu nome/ID").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante").setLabel("Solicitante").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("alvo").setLabel("Alvo").setStyle(TextInputStyle.Short)
@@ -154,13 +156,14 @@ client.on("interactionCreate", async (interaction) => {
           new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("provas").setLabel("Link/Imagem").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("provas").setLabel("Provas (link)").setStyle(TextInputStyle.Short)
         )
       );
 
       return interaction.showModal(modal);
     }
 
+    /* CRIAR */
     if (interaction.isModalSubmit() && interaction.customId === "form") {
 
       const id = String(++contador).padStart(4, "0");
@@ -206,45 +209,85 @@ client.on("interactionCreate", async (interaction) => {
       processos.set(canal.id, { ...data, msgId: msg.id, id });
 
       const botoes = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aprovar").setLabel("✔").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("negar").setLabel("❌").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("pausar").setLabel("⏸️").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("retomar").setLabel("▶️").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar Investigação").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar Investigação").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("pausar").setLabel("⏸️ Pausar Investigação").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("retomar").setLabel("▶️ Retomar Investigação").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar Caso").setStyle(ButtonStyle.Secondary)
       );
 
       await canal.send({ components: [botoes] });
 
-      return interaction.reply({ content: `✔ Criado: ${canal}`, ephemeral: true });
+      return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
 
+    /* BOTÕES */
     if (interaction.isButton()) {
 
       const p = processos.get(interaction.channel.id);
       if (!p) return;
 
       if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-        return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
+        return interaction.reply({ content: "❌ Apenas o Juiz pode executar.", ephemeral: true });
       }
 
-      if (interaction.customId === "aprovar") p.status = "Em andamento";
-      if (interaction.customId === "negar") p.status = "Negado";
-      if (interaction.customId === "pausar") p.status = "Pausado";
-      if (interaction.customId === "retomar") p.status = "Em andamento";
+      const juiz = `<@${interaction.user.id}>`;
+
+      if (interaction.customId === "aprovar") {
+        p.status = "Em andamento";
+        p.logs.push(`AUTORIZADA por ${interaction.user.username}`);
+
+        await interaction.channel.send(`🔨 **AUTORIZAÇÃO DEFERIDA**\n👨‍⚖️ ${juiz}`);
+      }
+
+      if (interaction.customId === "negar") {
+        p.status = "Negado";
+        p.logs.push(`NEGADA por ${interaction.user.username}`);
+
+        await interaction.channel.send(`❌ **AUTORIZAÇÃO INDEFERIDA**\n👨‍⚖️ ${juiz}`);
+      }
+
+      if (interaction.customId === "pausar") {
+        p.status = "Pausado";
+        p.logs.push(`PAUSADA por ${interaction.user.username}`);
+
+        await interaction.channel.send(`⏸️ Investigação pausada por ${juiz}`);
+      }
+
+      if (interaction.customId === "retomar") {
+        p.status = "Em andamento";
+        p.logs.push(`RETOMADA por ${interaction.user.username}`);
+
+        await interaction.channel.send(`▶️ Investigação retomada por ${juiz}`);
+      }
 
       if (interaction.customId === "encerrar") {
-        await interaction.channel.send("📁 RELATÓRIO FINAL:");
-        await interaction.channel.send(JSON.stringify(p.logs, null, 2));
+
+        p.status = "Encerrado";
+
+        await interaction.channel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("📁 RELATÓRIO FINAL")
+              .setColor("#2ecc71")
+              .setDescription(`
+📊 Status: ${p.status}
+
+📜 Histórico:
+${p.logs.map(l => `• ${l}`).join("\n")}
+              `)
+          ]
+        });
+
         processos.delete(interaction.channel.id);
-        return interaction.reply({ content: "✔ Encerrado", ephemeral: true });
+
+        return interaction.reply({ content: "✔ Caso encerrado.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
-      p.logs.push(`${interaction.customId} - ${interaction.user.username}`);
-
-      return interaction.reply({ content: "✔ Atualizado", ephemeral: true });
+      return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
 
   } catch (err) {

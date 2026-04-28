@@ -35,7 +35,7 @@ const GUILD_ID = process.env.GUILD_ID;
 const CARGO_JUIZ = "1498346869988921505";
 
 /* =========================
-   MEMÓRIA (SEM DB)
+   MEMÓRIA
 ========================= */
 
 const processos = new Map();
@@ -50,7 +50,7 @@ async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("tribunal")
-      .setDescription("Abrir painel do Tribunal Elite Pro Max")
+      .setDescription("Abrir painel do Jurídico Bella")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -62,22 +62,22 @@ async function registerCommands() {
 }
 
 /* =========================
-   PAINEL PRO MAX
+   PAINEL
 ========================= */
 
 function painel() {
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle("⚖️ TRIBUNAL ELITE PRO MAX")
+        .setTitle("⚖️ JURÍDICO BELLA")
         .setColor("#d4af37")
         .setDescription(`
-🏛️ Sistema Judicial de Alta Segurança
+🏛️ Sistema Judicial
 
 📂 Criação de processos automatizada
 ⚖️ Julgamento exclusivo por juízes
 📜 Defesa e acusação organizadas
-🔒 Controle total do tribunal
+🔒 Controle do tribunal
         `)
     ],
     components: [
@@ -92,11 +92,11 @@ function painel() {
 }
 
 /* =========================
-   START BOT
+   START
 ========================= */
 
-client.once("ready", () => {
-  console.log(`⚖️ Tribunal PRO MAX online: ${client.user.tag}`);
+client.once("clientReady", () => {
+  console.log(`⚖️ Jurídico Bella online: ${client.user.tag}`);
 });
 
 /* =========================
@@ -106,18 +106,18 @@ client.once("ready", () => {
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    /* ================= COMANDO ================= */
+    /* COMANDO */
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "tribunal") {
         return interaction.reply(painel());
       }
     }
 
-    /* ================= ABRIR PROCESSO ================= */
+    /* ABRIR PROCESSO */
     if (interaction.isButton() && interaction.customId === "abrir_processo") {
 
       if (cooldown.has(interaction.user.id)) {
-        return interaction.reply({ content: "⏳ Aguarde alguns segundos...", ephemeral: true });
+        return interaction.reply({ content: "⏳ Aguarde...", ephemeral: true });
       }
 
       cooldown.add(interaction.user.id);
@@ -125,7 +125,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const modal = new ModalBuilder()
         .setCustomId("form_processo")
-        .setTitle("📂 Novo Processo Judicial");
+        .setTitle("📂 Novo Processo");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
@@ -143,7 +143,7 @@ client.on("interactionCreate", async (interaction) => {
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId("motivo")
-            .setLabel("Motivo do Processo")
+            .setLabel("Motivo")
             .setStyle(TextInputStyle.Paragraph)
         )
       );
@@ -151,7 +151,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* ================= CRIAR PROCESSO ================= */
+    /* CRIAR PROCESSO */
     if (interaction.isModalSubmit() && interaction.customId === "form_processo") {
 
       const id = String(++contador).padStart(4, "0");
@@ -193,7 +193,7 @@ client.on("interactionCreate", async (interaction) => {
       });
 
       const embed = new EmbedBuilder()
-        .setTitle(`⚖️ PROCESSO PRO MAX #${id}`)
+        .setTitle(`⚖️ PROCESSO #${id}`)
         .setColor("#f1c40f")
         .setDescription(`
 👤 Solicitante: ${solicitante}
@@ -203,7 +203,7 @@ client.on("interactionCreate", async (interaction) => {
 ${motivo}
 
 ━━━━━━━━━━━━━━━━
-📌 Aguarde início da audiência
+📌 Aguardando audiência
         `);
 
       const row = new ActionRowBuilder().addComponents(
@@ -222,69 +222,60 @@ ${motivo}
       });
     }
 
-    /* ================= SESSION ================= */
     const session = processos.get(interaction.channel?.id);
 
-    /* ================= BOTÕES ================= */
+    /* BOTÕES */
     if (interaction.isButton()) {
 
-      // ⚖️ AUDIÊNCIA
+      if (!session && interaction.customId !== "abrir_processo") {
+        return interaction.reply({ content: "❌ Este canal não é um processo.", ephemeral: true });
+      }
+
+      // AUDIÊNCIA
       if (interaction.customId === "aud_inicio") {
         if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-          return interaction.reply({ content: "❌ Apenas o juiz pode iniciar.", ephemeral: true });
+          return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
         }
 
-        if (session) session.juiz = interaction.user.id;
+        session.juiz = interaction.user.id;
 
-        return interaction.reply({ content: "⚖️ Audiência iniciada com sucesso", ephemeral: true });
+        return interaction.reply({ content: "⚖️ Audiência iniciada.", ephemeral: true });
       }
 
-      // 👨‍💼 ADVOGADO
+      // ADVOGADO
       if (interaction.customId === "advogado") {
-        if (!session?.status) {
-          return interaction.reply({ content: "❌ Processo inválido", ephemeral: true });
-        }
-
         session.advogado = interaction.user.id;
-
-        return interaction.reply({ content: "✔ Advogado registrado", ephemeral: true });
+        return interaction.reply({ content: "✔ Advogado definido.", ephemeral: true });
       }
 
-      // 👮 ACUSAÇÃO
+      // ACUSAÇÃO
       if (interaction.customId === "acusacao") {
-        if (!session?.status) {
-          return interaction.reply({ content: "❌ Processo inválido", ephemeral: true });
-        }
-
         session.acusacao = interaction.user.id;
-
-        return interaction.reply({ content: "✔ Acusação registrada", ephemeral: true });
+        return interaction.reply({ content: "✔ Acusação definida.", ephemeral: true });
       }
 
-      // 🔒 ENCERRAR
+      // ENCERRAR
       if (interaction.customId === "encerrar") {
         if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-          return interaction.reply({ content: "❌ Apenas o juiz pode encerrar.", ephemeral: true });
+          return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
         }
 
         processos.delete(interaction.channel.id);
 
         await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
-          SendMessages: false,
-          AddReactions: false
+          SendMessages: false
         });
 
-        await interaction.channel.send("🔒 Processo encerrado pelo Tribunal PRO MAX.");
+        await interaction.channel.send("🔒 Processo encerrado.");
 
-        return interaction.reply({ content: "✔ Encerrado com sucesso", ephemeral: true });
+        return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
       }
 
-      // 📜 DEFESA
+      // DEFESA
       if (interaction.customId === "defesa") {
-
         const modal = new ModalBuilder()
           .setCustomId("defesa_modal")
-          .setTitle("📜 Defesa Oficial");
+          .setTitle("📜 Defesa");
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
@@ -299,19 +290,19 @@ ${motivo}
       }
     }
 
-    /* ================= DEFESA ================= */
+    /* DEFESA */
     if (interaction.isModalSubmit() && interaction.customId === "defesa_modal") {
 
       const texto = interaction.fields.getTextInputValue("texto");
 
       const embed = new EmbedBuilder()
-        .setTitle("📜 DEFESA OFICIAL")
+        .setTitle("📜 DEFESA")
         .setColor("#3498db")
         .setDescription(texto);
 
       await interaction.channel.send({ embeds: [embed] });
 
-      return interaction.reply({ content: "✔ Defesa registrada com sucesso", ephemeral: true });
+      return interaction.reply({ content: "✔ Defesa enviada.", ephemeral: true });
     }
 
   } catch (err) {
@@ -319,7 +310,7 @@ ${motivo}
 
     if (!interaction.replied) {
       return interaction.reply({
-        content: "❌ Erro interno no Tribunal PRO MAX",
+        content: "❌ Erro interno.",
         ephemeral: true
       });
     }

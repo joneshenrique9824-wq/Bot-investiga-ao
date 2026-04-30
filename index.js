@@ -49,12 +49,12 @@ process.on("uncaughtException", err => {
   console.error("❌ CRASH:", err);
 });
 
-/* ================= LOG ================= */
+/* ================= LOG FIXO ================= */
 
 async function enviarLog(guild, msg) {
   try {
     const canal = await guild.channels.fetch(CANAL_LOGS).catch(() => null);
-    if (!canal) return;
+    if (!canal) return console.error("❌ Canal de logs não encontrado");
     await canal.send(`📊 LOG:\n${msg}`);
   } catch (e) {
     console.error("Erro LOG:", e);
@@ -102,7 +102,7 @@ async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("investigacao")
-      .setDescription("Abrir painel")
+      .setDescription("Abrir painel de investigação")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: 10 }).setToken(TOKEN);
@@ -138,7 +138,7 @@ function painel() {
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("abrir")
-          .setLabel("📂 Solicitar")
+          .setLabel("📂 Solicitar Investigação")
           .setStyle(ButtonStyle.Primary)
       )
     ]
@@ -265,16 +265,7 @@ client.on("interactionCreate", async (i) => {
 
       const juiz = `<@${i.user.id}>`;
 
-      if (i.customId === "aprovar") {
-        p.status = "Em andamento";
-        await i.channel.send(`✔ Aprovado por ${juiz}`);
-      }
-
-      if (i.customId === "negar") {
-        p.status = "Negado";
-        await i.channel.send(`❌ Negado por ${juiz}`);
-      }
-
+      /* ENCERRAR (TRAVA TOTAL + LOG CORRIGIDO) */
       if (i.customId === "encerrar") {
         p.status = "Encerrado";
 
@@ -283,15 +274,34 @@ client.on("interactionCreate", async (i) => {
             id: i.guild.roles.everyone,
             deny: [
               PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
+              PermissionsBitField.Flags.SendMessages,
+              PermissionsBitField.Flags.CreatePublicThreads,
+              PermissionsBitField.Flags.CreatePrivateThreads,
+              PermissionsBitField.Flags.SendMessagesInThreads
             ]
           }
         ]);
 
-        await i.channel.send(`🔒 Encerrado pelo juiz ${juiz}`);
+        await i.channel.send(`🔒 Encerrado pelo juiz ${juiz}\n🔐 Canal totalmente bloqueado.`);
+
+        await enviarLog(
+          i.guild,
+          `🔒 INVESTIGAÇÃO ${p.id} ENCERRADA por ${juiz} no canal ${i.channel.id}`
+        );
+
         processos.delete(i.channel.id);
 
-        return i.reply({ content: "✔ Encerrado.", ephemeral: true });
+        return i.reply({ content: "✔ Encerrado e trancado.", ephemeral: true });
+      }
+
+      if (i.customId === "aprovar") {
+        p.status = "Em andamento";
+        await i.channel.send(`✔ Aprovado por ${juiz}`);
+      }
+
+      if (i.customId === "negar") {
+        p.status = "Negado";
+        await i.channel.send(`❌ Negado por ${juiz}`);
       }
 
       const msg = await i.channel.messages.fetch(p.msgId);

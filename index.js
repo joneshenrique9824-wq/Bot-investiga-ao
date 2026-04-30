@@ -126,7 +126,7 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    /* ABRIR */
+    /* ABRIR MODAL */
     if (interaction.isButton() && interaction.customId === "abrir") {
 
       let tipo = null;
@@ -161,7 +161,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     /* CRIAR INVESTIGAÇÃO */
-    if (interaction.isModalSubmit()) {
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
       const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
       const id = String(++contador).padStart(4, "0");
@@ -190,7 +190,7 @@ client.on("interactionCreate", async (interaction) => {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("aprovar").setLabel("✔").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("negar").setLabel("❌").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("infiltrado").setLabel("🕵️").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`infiltrado_${canal.id}`).setLabel("🕵️").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("encerrar").setLabel("🔒").setStyle(ButtonStyle.Secondary)
       );
 
@@ -209,10 +209,12 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ content: "❌ Apenas juiz.", ephemeral: true });
       }
 
-      if (interaction.customId === "infiltrado") {
+      if (interaction.customId.startsWith("infiltrado_")) {
+
+        const canalId = interaction.customId.split("_")[1];
 
         const modal = new ModalBuilder()
-          .setCustomId("set_infiltrado")
+          .setCustomId(`set_infiltrado_${canalId}`)
           .setTitle("Definir Infiltrado");
 
         modal.addComponents(
@@ -234,19 +236,31 @@ client.on("interactionCreate", async (interaction) => {
 
         p.status = "Encerrado";
 
-        await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
-          SendMessages: false
-        });
+        await interaction.channel.permissionOverwrites.set([
+          {
+            id: interaction.guild.roles.everyone,
+            deny: [
+              PermissionsBitField.Flags.SendMessages,
+              PermissionsBitField.Flags.AddReactions
+            ]
+          },
+          {
+            id: CARGO_JUIZ,
+            allow: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          }
+        ]);
 
-        await interaction.channel.permissionOverwrites.edit(CARGO_JUIZ, {
-          SendMessages: true
-        });
-
-        await interaction.channel.send("🔒 Investigação encerrada.");
+        await interaction.channel.send("🔒 Investigação encerrada. Canal trancado.");
 
         processos.delete(interaction.channel.id);
 
-        return interaction.reply({ content: "Encerrado.", ephemeral: true });
+        return interaction.reply({
+          content: "✔ Canal bloqueado.",
+          ephemeral: true
+        });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
@@ -256,20 +270,31 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     /* SALVAR INFILTRADO */
-    if (interaction.isModalSubmit() && interaction.customId === "set_infiltrado") {
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
 
-      const p = processos.get(interaction.channel.id);
-      if (!p) return;
+      const canalId = interaction.customId.split("_")[2];
+      const p = processos.get(canalId);
+
+      if (!p) {
+        return interaction.reply({ content: "❌ Processo não encontrado.", ephemeral: true });
+      }
 
       p.infiltrado = {
         nome: interaction.fields.getTextInputValue("nome"),
         passaporte: interaction.fields.getTextInputValue("passaporte")
       };
 
-      const msg = await interaction.channel.messages.fetch(p.msgId);
-      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
+      const canal = interaction.guild.channels.cache.get(canalId);
+      const msg = await canal.messages.fetch(p.msgId);
 
-      return interaction.reply({ content: "🕵️ Infiltrado definido!", ephemeral: true });
+      await msg.edit({
+        embeds: [gerarEmbed(p.id, p)]
+      });
+
+      return interaction.reply({
+        content: "🕵️ Infiltrado definido!",
+        ephemeral: true
+      });
     }
 
   } catch (err) {

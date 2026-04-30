@@ -33,7 +33,11 @@ const CANAL_LOGS = "1499246091437342771";
 /* ================= CLIENT ================= */
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages
+  ]
 });
 
 let contador = 0;
@@ -156,10 +160,12 @@ client.once("ready", () => {
 client.on("interactionCreate", async (i) => {
   try {
 
+    /* COMANDO */
     if (i.isChatInputCommand() && i.commandName === "investigacao") {
       return i.reply(painel());
     }
 
+    /* ABRIR MODAL */
     if (i.isButton() && i.customId === "abrir") {
 
       let tipo = null;
@@ -180,7 +186,7 @@ client.on("interactionCreate", async (i) => {
         ["provas", "Provas", TextInputStyle.Short]
       ];
 
-      campos.forEach(([id, label, style]) => {
+      for (const [id, label, style] of campos) {
         const input = new TextInputBuilder()
           .setCustomId(id)
           .setLabel(label)
@@ -188,11 +194,12 @@ client.on("interactionCreate", async (i) => {
           .setRequired(true);
 
         modal.addComponents(new ActionRowBuilder().addComponents(input));
-      });
+      }
 
       return i.showModal(modal);
     }
 
+    /* CRIAR INVESTIGAÇÃO */
     if (i.isModalSubmit() && i.customId.startsWith("form_")) {
 
       const tipo = i.customId.split("_")[1];
@@ -244,11 +251,12 @@ client.on("interactionCreate", async (i) => {
         ]
       });
 
-      await enviarLog(i.guild, `📂 Nova investigação ${id} criada`);
+      await enviarLog(i.guild, `📂 Investigação ${id} criada`);
 
       return i.reply({ content: "✔ Investigação criada!", ephemeral: true });
     }
 
+    /* BOTÕES */
     if (i.isButton()) {
 
       const p = processos.get(i.channel.id);
@@ -274,12 +282,10 @@ client.on("interactionCreate", async (i) => {
       if (i.customId === "encerrar") {
         p.status = "Encerrado";
 
-        await i.channel.permissionOverwrites.set([
-          {
-            id: i.guild.roles.everyone,
-            deny: Object.values(PermissionsBitField.Flags)
-          }
-        ]);
+        await i.channel.permissionOverwrites.edit(i.guild.roles.everyone, {
+          ViewChannel: false,
+          SendMessages: false
+        });
 
         processos.delete(i.channel.id);
         statusMsg = `🔒 ENCERRADO pelo Juiz ${juiz}`;

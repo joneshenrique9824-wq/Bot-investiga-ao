@@ -48,6 +48,14 @@ function formatTempo(ms) {
   return `${h}h ${m}m ${s}s`;
 }
 
+/* ================= LOCK ================= */
+
+async function lockChannel(channel) {
+  await channel.permissionOverwrites.edit(channel.guild.id, {
+    SendMessages: false
+  });
+}
+
 /* ================= EMBED ================= */
 
 function gerarEmbed(id, data) {
@@ -240,12 +248,32 @@ client.on("interactionCreate", async (interaction) => {
 
       const juiz = `<@${interaction.user.id}>`;
 
-      /* INFILTRADO */
-      if (interaction.customId === "infiltrado") {
+      if (interaction.customId === "aprovar") {
+        p.status = "Em andamento";
 
+        await interaction.channel.send(`
+✔ **INVESTIGAÇÃO APROVADA**
+
+👨‍⚖️ Juiz: ${juiz}
+📂 ID: ${p.id}
+`);
+      }
+
+      if (interaction.customId === "negar") {
+        p.status = "Negado";
+
+        await interaction.channel.send(`
+❌ **INVESTIGAÇÃO NEGADA**
+
+👨‍⚖️ Juiz: ${juiz}
+📂 ID: ${p.id}
+`);
+      }
+
+      if (interaction.customId === "infiltrado") {
         const modal = new ModalBuilder()
           .setCustomId("set_infiltrado")
-          .setTitle("🕵️ Definir Infiltrado");
+          .setTitle("🕵️ Infiltrado");
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(
@@ -259,26 +287,20 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.showModal(modal);
       }
 
-      /* ENCERRAR */
       if (interaction.customId === "encerrar") {
 
         p.status = "Encerrado";
 
-        await interaction.channel.permissionOverwrites.set([
-          {
-            id: interaction.guild.id,
-            deny: [PermissionsBitField.Flags.ViewChannel]
-          },
-          {
-            id: CARGO_JUIZ,
-            allow: [PermissionsBitField.Flags.ViewChannel]
-          }
-        ]);
+        await lockChannel(interaction.channel);
 
-        /* LOGS */
-        let logsCat = interaction.guild.channels.cache.find(
-          c => c.name === CAT_LOGS
-        );
+        await interaction.channel.send(`
+🔒 **INVESTIGAÇÃO ENCERRADA**
+
+👨‍⚖️ Juiz: ${juiz}
+📂 ID: ${p.id}
+`);
+
+        let logsCat = interaction.guild.channels.cache.find(c => c.name === CAT_LOGS);
 
         if (!logsCat) {
           logsCat = await interaction.guild.channels.create({
@@ -294,29 +316,23 @@ client.on("interactionCreate", async (interaction) => {
         });
 
         await logChannel.send(`
-📁 Investigação encerrada
-
+📁 INVESTIGAÇÃO ENCERRADA
 ID: ${p.id}
 Juiz: ${juiz}
-Status: ${p.status}
 `);
 
         processos.delete(interaction.channel.id);
 
-        return interaction.reply({
-          content: "✔ Investigação encerrada e log criada.",
-          ephemeral: true
-        });
+        return interaction.reply({ content: "✔ Encerrado e travado.", ephemeral: true });
       }
 
-      /* ATUALIZA EMBED */
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
 
-    /* SALVAR INFILTRADO */
+    /* INFILTRADO SAVE */
     if (interaction.isModalSubmit() && interaction.customId === "set_infiltrado") {
 
       const p = processos.get(interaction.channel.id);

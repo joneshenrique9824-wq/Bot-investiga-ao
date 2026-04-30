@@ -26,6 +26,12 @@ const CARGO_JUIZ = "1497405730414661642";
 const POLICIA_CIVIL = "1498747886165426246";
 const POLICIA_FEDERAL = "1498747892465270824";
 
+/* ====== CATEGORIAS / LOGS (ADICIONADO) ====== */
+
+const CATEGORIA_CIVIL = "1499245923354808380";
+const CATEGORIA_FEDERAL = "1499345603723792476";
+const CANAL_LOGS = "1499246091437342771";
+
 /* ================= CLIENT ================= */
 
 const client = new Client({
@@ -61,10 +67,10 @@ function gerarEmbed(id, data) {
 📎 ${data.provas}
 
 🕵️ Infiltrado: ${
-  data.infiltrado
-    ? `${data.infiltrado.nome} (${data.infiltrado.passaporte})`
-    : "Não definido"
-}
+      data.infiltrado
+        ? `${data.infiltrado.nome} (${data.infiltrado.passaporte})`
+        : "Não definido"
+    }
 
 📊 Status: ${data.status}
 ⏱️ Tempo: ${formatTempo(Date.now() - data.inicio)}
@@ -131,14 +137,12 @@ client.once("clientReady", () => {
 client.on("interactionCreate", async (interaction) => {
   try {
 
-    /* COMANDO */
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "investigacao") {
         return interaction.reply(painel());
       }
     }
 
-    /* ABRIR */
     if (interaction.isButton() && interaction.customId === "abrir") {
 
       let tipo = null;
@@ -172,7 +176,6 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* CRIAR */
     if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
       const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
@@ -211,7 +214,6 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
 
-    /* BOTÕES */
     if (interaction.isButton()) {
 
       const p = processos.get(interaction.channel.id);
@@ -257,7 +259,6 @@ client.on("interactionCreate", async (interaction) => {
 
         p.status = "Encerrado";
 
-        // 🔒 LOCK TOTAL
         await interaction.channel.permissionOverwrites.set([
           {
             id: interaction.guild.roles.everyone,
@@ -284,7 +285,6 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
 
-    /* INFILTRADO SALVAR */
     if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
 
       const canalId = interaction.customId.split("_")[2];
@@ -299,9 +299,7 @@ client.on("interactionCreate", async (interaction) => {
       const canal = interaction.guild.channels.cache.get(canalId);
       const msg = await canal.messages.fetch(p.msgId);
 
-      await msg.edit({
-        embeds: [gerarEmbed(p.id, p)]
-      });
+      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
       return interaction.reply({
         content: "🕵️ Infiltrado definido!",

@@ -39,7 +39,7 @@ const client = new Client({
 let contador = 0;
 const processos = new Map();
 
-/* ================= ERROS ================= */
+/* ================= ANTI CRASH ================= */
 
 process.on("unhandledRejection", err => {
   console.error("❌ ERRO NÃO TRATADO:", err);
@@ -138,7 +138,7 @@ function painel() {
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("abrir")
-          .setLabel("📂 Solicitar Investigação")
+          .setLabel("📂 Solicitar")
           .setStyle(ButtonStyle.Primary)
       )
     ]
@@ -175,11 +175,11 @@ client.on("interactionCreate", async (i) => {
         .setTitle("📂 Investigação");
 
       const campos = [
-        ["solicitante_nome", "Nome"],
-        ["solicitante_id", "ID"],
-        ["alvo", "Alvo"],
+        ["solicitante_nome", "Nome", TextInputStyle.Short],
+        ["solicitante_id", "ID", TextInputStyle.Short],
+        ["alvo", "Alvo", TextInputStyle.Short],
         ["motivo", "Motivo", TextInputStyle.Paragraph],
-        ["provas", "Provas"]
+        ["provas", "Provas", TextInputStyle.Short]
       ];
 
       campos.forEach(([id, label, style]) => {
@@ -188,7 +188,7 @@ client.on("interactionCreate", async (i) => {
             new TextInputBuilder()
               .setCustomId(id)
               .setLabel(label)
-              .setStyle(style || TextInputStyle.Short)
+              .setStyle(style)
           )
         );
       });
@@ -250,7 +250,7 @@ client.on("interactionCreate", async (i) => {
 
       await enviarLog(i.guild, `📂 Investigação ${id} criada por <@${i.user.id}>`);
 
-      return i.reply({ content: "✔ Criado com sucesso!", ephemeral: true });
+      return i.reply({ content: "✔ Investigação criada!", ephemeral: true });
     }
 
     /* BOTÕES */
@@ -288,7 +288,7 @@ client.on("interactionCreate", async (i) => {
           }
         ]);
 
-        await i.channel.send(`🔒 Encerrado por ${juiz}`);
+        await i.channel.send(`🔒 Encerrado pelo juiz ${juiz}`);
         processos.delete(i.channel.id);
 
         return i.reply({ content: "✔ Encerrado.", ephemeral: true });

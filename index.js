@@ -26,7 +26,7 @@ const CARGO_JUIZ = "1497405730414661642";
 const POLICIA_CIVIL = "1498747886165426246";
 const POLICIA_FEDERAL = "1498747892465270824";
 
-/* ===== CATEGORIAS + LOGS ===== */
+/* ================= CATEGORIAS ================= */
 
 const CATEGORIA_CIVIL = "1499245923354808380";
 const CATEGORIA_FEDERAL = "1499391240654032976";
@@ -235,6 +235,38 @@ client.on("interactionCreate", async (interaction) => {
 
       const juiz = `<@${interaction.user.id}>`;
 
+      /* ================= 🔥 INFILTRADO CORRIGIDO ================= */
+
+      if (interaction.customId.startsWith("infiltrado_")) {
+
+        const canalId = interaction.customId.replace("infiltrado_", "");
+
+        const modal = new ModalBuilder()
+          .setCustomId(`set_infiltrado_${canalId}`)
+          .setTitle("Definir Infiltrado");
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("nome")
+              .setLabel("Nome")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("passaporte")
+              .setLabel("Passaporte")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
+      /* ================= OUTROS BOTÕES ================= */
+
       if (interaction.customId === "aprovar") {
         p.status = "Em andamento";
         await interaction.channel.send(`✔ Aprovado por ${juiz}`);
@@ -275,37 +307,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
 
-    /* ================= INFILTRADO (CORRIGIDO) ================= */
-
-    if (interaction.isButton() && interaction.customId.startsWith("infiltrado_")) {
-
-      const canalId = interaction.customId.replace("infiltrado_", "");
-
-      const modal = new ModalBuilder()
-        .setCustomId(`set_infiltrado_${canalId}`)
-        .setTitle("Definir Infiltrado");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("nome")
-            .setLabel("Nome")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("passaporte")
-            .setLabel("Passaporte")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        )
-      );
-
-      return interaction.showModal(modal);
-    }
-
-    /* ================= SALVAR INFILTRADO ================= */
+    /* ================= INFILTRADO SALVAR ================= */
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
 

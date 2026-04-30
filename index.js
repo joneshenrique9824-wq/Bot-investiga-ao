@@ -176,7 +176,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* ================= CRIAR INVESTIGAÇÃO ================= */
+    /* ================= CRIAÇÃO ================= */
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
@@ -266,10 +266,7 @@ client.on("interactionCreate", async (interaction) => {
 
         processos.delete(interaction.channel.id);
 
-        return interaction.reply({
-          content: "✔ Investigação encerrada.",
-          ephemeral: true
-        });
+        return interaction.reply({ content: "✔ Investigação encerrada.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
@@ -278,7 +275,37 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
 
-    /* ================= INFILTRADO ================= */
+    /* ================= INFILTRADO (CORRIGIDO) ================= */
+
+    if (interaction.isButton() && interaction.customId.startsWith("infiltrado_")) {
+
+      const canalId = interaction.customId.replace("infiltrado_", "");
+
+      const modal = new ModalBuilder()
+        .setCustomId(`set_infiltrado_${canalId}`)
+        .setTitle("Definir Infiltrado");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("nome")
+            .setLabel("Nome")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("passaporte")
+            .setLabel("Passaporte")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    /* ================= SALVAR INFILTRADO ================= */
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
 

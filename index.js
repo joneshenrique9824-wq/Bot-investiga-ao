@@ -39,20 +39,25 @@ const client = new Client({
 let contador = 0;
 const processos = new Map();
 
+/* ================= ANTI CRASH ================= */
+
+process.on("unhandledRejection", err => {
+  console.error("❌ ERRO NÃO TRATADO:", err);
+});
+
+process.on("uncaughtException", err => {
+  console.error("❌ CRASH:", err);
+});
+
 /* ================= LOG ================= */
 
-async function enviarLog(guild, mensagem) {
+async function enviarLog(guild, msg) {
   try {
-    const canal = await guild.channels.fetch(CANAL_LOGS);
-
-    if (!canal) {
-      console.log("❌ Canal de logs não encontrado");
-      return;
-    }
-
-    await canal.send(`📊 LOG:\n${mensagem}`);
-  } catch (err) {
-    console.error("ERRO LOG:", err);
+    const canal = await guild.channels.fetch(CANAL_LOGS).catch(() => null);
+    if (!canal) return;
+    await canal.send(`📊 LOG:\n${msg}`);
+  } catch (e) {
+    console.error("Erro LOG:", e);
   }
 }
 
@@ -67,28 +72,27 @@ function formatTempo(ms) {
 
 /* ================= EMBED ================= */
 
-function gerarEmbed(id, data) {
+function gerarEmbed(id, d) {
   return new EmbedBuilder()
     .setTitle(`🔍 INVESTIGAÇÃO #${id}`)
     .setColor("#f1c40f")
     .setDescription(`
-👮 Criado por: <@${data.criador}>
+👮 Criado por: <@${d.criador}>
 
-👤 ${data.solicitante_nome} | ID: ${data.solicitante_id}
-🎯 ${data.alvo}
+👤 ${d.solicitante_nome} | ID: ${d.solicitante_id}
+🎯 ${d.alvo}
 
-📄 ${data.motivo}
-
-📎 ${data.provas}
+📄 ${d.motivo}
+📎 ${d.provas}
 
 🕵️ Infiltrado: ${
-  data.infiltrado
-    ? `${data.infiltrado.nome} (${data.infiltrado.passaporte})`
+  d.infiltrado
+    ? `${d.infiltrado.nome} (${d.infiltrado.passaporte})`
     : "Não definido"
 }
 
-📊 Status: ${data.status}
-⏱️ Tempo: ${formatTempo(Date.now() - data.inicio)}
+📊 Status: ${d.status}
+⏱️ Tempo: ${formatTempo(Date.now() - d.inicio)}
 `);
 }
 
@@ -98,7 +102,7 @@ async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("investigacao")
-      .setDescription("Abrir painel de investigação")
+      .setDescription("Abrir painel")
   ].map(c => c.toJSON());
 
   const rest = new REST({ version: 10 }).setToken(TOKEN);
@@ -115,18 +119,15 @@ function painel() {
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
+        .setTitle("🔍 SISTEMA DE INVESTIGAÇÃO")
         .setColor("#d4af37")
-        .setDescription(`
-🏛️ SISTEMA JUDICIAL RP
-👨‍⚖️ Nenhuma investigação sem autorização.
-`)
+        .setDescription("Clique para iniciar")
     ],
     components: [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("abrir")
-          .setLabel("📂 Solicitar Investigação")
+          .setLabel("📂 Solicitar")
           .setStyle(ButtonStyle.Primary)
       )
     ]
@@ -136,27 +137,28 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log("🚨 BOT ONLINE");
+  console.log("✅ BOT ESTÁVEL ONLINE");
 });
 
 /* ================= INTERAÇÕES ================= */
 
-client.on("interactionCreate", async (interaction) => {
+client.on("interactionCreate", async (i) => {
   try {
 
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "investigacao") {
-        return interaction.reply(painel());
+    /* COMANDO */
+    if (i.isChatInputCommand()) {
+      if (i.commandName === "investigacao") {
+        return i.reply(painel());
       }
     }
 
-    if (interaction.isButton() && interaction.customId === "abrir") {
+    /* ABRIR */
+    if (i.isButton() && i.customId === "abrir") {
 
       let tipo = null;
-
-      if (interaction.member.roles.cache.has(POLICIA_CIVIL)) tipo = "civil";
-      else if (interaction.member.roles.cache.has(POLICIA_FEDERAL)) tipo = "federal";
-      else return interaction.reply({ content: "❌ Apenas Polícia.", ephemeral: true });
+      if (i.member.roles.cache.has(POLICIA_CIVIL)) tipo = "civil";
+      else if (i.member.roles.cache.has(POLICIA_FEDERAL)) tipo = "federal";
+      else return i.reply({ content: "❌ Apenas Polícia", ephemeral: true });
 
       const modal = new ModalBuilder()
         .setCustomId(`form_${tipo}`)
@@ -180,34 +182,37 @@ client.on("interactionCreate", async (interaction) => {
         )
       );
 
-      return interaction.showModal(modal);
+      return i.showModal(modal);
     }
 
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
+    /* CRIAR */
+    if (i.isModalSubmit() && i.customId.startsWith("form_")) {
 
-      const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
+      await i.deferReply({ ephemeral: true });
+
+      const tipo = i.customId.includes("civil") ? "civil" : "federal";
       const id = String(++contador).padStart(4, "0");
 
       const data = {
-        criador: interaction.user.id,
-        solicitante_nome: interaction.fields.getTextInputValue("solicitante_nome"),
-        solicitante_id: interaction.fields.getTextInputValue("solicitante_id"),
-        alvo: interaction.fields.getTextInputValue("alvo"),
-        motivo: interaction.fields.getTextInputValue("motivo"),
-        provas: interaction.fields.getTextInputValue("provas"),
+        criador: i.user.id,
+        solicitante_nome: i.fields.getTextInputValue("solicitante_nome"),
+        solicitante_id: i.fields.getTextInputValue("solicitante_id"),
+        alvo: i.fields.getTextInputValue("alvo"),
+        motivo: i.fields.getTextInputValue("motivo"),
+        provas: i.fields.getTextInputValue("provas"),
         status: "Aguardando",
         inicio: Date.now(),
         infiltrado: null
       };
 
-      const canal = await interaction.guild.channels.create({
+      const canal = await i.guild.channels.create({
         name: `🔍-${tipo}-${id}`,
         type: ChannelType.GuildText,
         parent: tipo === "civil" ? CATEGORIA_CIVIL : CATEGORIA_FEDERAL,
         permissionOverwrites: [
-          { id: interaction.guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+          { id: i.guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
           { id: CARGO_JUIZ, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-          { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+          { id: i.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
         ]
       });
 
@@ -215,95 +220,68 @@ client.on("interactionCreate", async (interaction) => {
 
       processos.set(canal.id, { ...data, msgId: msg.id, id });
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(`infiltrado_${canal.id}`).setLabel("🕵️ Infiltrado").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
-      );
+      await canal.send({
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("aprovar").setLabel("✔ Autorizar").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId("negar").setLabel("❌ Negar").setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId(`infiltrado_${canal.id}`).setLabel("🕵️ Infiltrado").setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId("encerrar").setLabel("🔒 Encerrar").setStyle(ButtonStyle.Secondary)
+          )
+        ]
+      });
 
-      await canal.send({ components: [row] });
+      await enviarLog(i.guild, `📂 Nova investigação ${id} criada por <@${i.user.id}>`);
 
-      await enviarLog(interaction.guild,
-`📂 Nova investigação
-👮 Criador: <@${interaction.user.id}>
-📁 Canal: ${canal}
-🆔 ID: ${id}
-📌 Tipo: ${tipo}`);
-
-      return interaction.reply({ content: "✔ Criado!", ephemeral: true });
+      return i.editReply("✔ Investigação criada!");
     }
 
-    if (interaction.isButton()) {
+    /* BOTÕES */
+    if (i.isButton()) {
 
-      const p = processos.get(interaction.channel.id);
-      if (!p) return;
+      await i.deferReply({ ephemeral: true });
 
-      if (!interaction.member.roles.cache.has(CARGO_JUIZ)) {
-        return interaction.reply({ content: "❌ Apenas Juiz.", ephemeral: true });
+      const p = processos.get(i.channel.id);
+      if (!p) return i.editReply("❌ Processo não encontrado");
+
+      if (!i.member.roles.cache.has(CARGO_JUIZ)) {
+        return i.editReply("❌ Apenas juiz");
       }
 
-      const juiz = `<@${interaction.user.id}>`;
+      const juiz = `<@${i.user.id}>`;
 
-      if (interaction.customId === "aprovar") {
+      if (i.customId === "aprovar") {
         p.status = "Em andamento";
-        await interaction.channel.send(`✔ Investigação APROVADA pelo juiz ${juiz}`);
-        await enviarLog(interaction.guild, `✔ Aprovado por ${juiz} em ${interaction.channel}`);
-        return interaction.reply({ content: "✔ Aprovado", ephemeral: true });
+        await i.channel.send(`✔ APROVADA por ${juiz}`);
+        await enviarLog(i.guild, `✔ Aprovado por ${juiz}`);
       }
 
-      if (interaction.customId === "negar") {
+      if (i.customId === "negar") {
         p.status = "Negado";
-        await interaction.channel.send(`❌ Investigação NEGADA pelo juiz ${juiz}`);
-        await enviarLog(interaction.guild, `❌ Negado por ${juiz} em ${interaction.channel}`);
-        return interaction.reply({ content: "✔ Negado", ephemeral: true });
+        await i.channel.send(`❌ NEGADA por ${juiz}`);
+        await enviarLog(i.guild, `❌ Negado por ${juiz}`);
       }
 
-      if (interaction.customId === "encerrar") {
+      if (i.customId === "encerrar") {
         p.status = "Encerrado";
 
-        await interaction.channel.permissionOverwrites.set([
+        await i.channel.permissionOverwrites.set([
           {
-            id: interaction.guild.roles.everyone,
+            id: i.guild.roles.everyone,
             deny: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
-          },
-          {
-            id: CARGO_JUIZ,
-            allow: [PermissionsBitField.Flags.ViewChannel],
-            deny: [PermissionsBitField.Flags.SendMessages]
           }
         ]);
 
-        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}`);
-        await enviarLog(interaction.guild, `🔒 Encerrado por ${juiz} em ${interaction.channel}`);
+        await i.channel.send(`🔒 Encerrado por ${juiz}`);
+        await enviarLog(i.guild, `🔒 Encerrado por ${juiz}`);
 
-        processos.delete(interaction.channel.id);
-
-        return interaction.reply({ content: "✔ Encerrado", ephemeral: true });
+        processos.delete(i.channel.id);
       }
 
-      const msg = await interaction.channel.messages.fetch(p.msgId);
+      const msg = await i.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
-
-      const canalId = interaction.customId.split("_")[2];
-      const p = processos.get(canalId);
-      if (!p) return;
-
-      p.infiltrado = {
-        nome: interaction.fields.getTextInputValue("nome"),
-        passaporte: interaction.fields.getTextInputValue("passaporte")
-      };
-
-      const canal = interaction.guild.channels.cache.get(canalId);
-      const msg = await canal.messages.fetch(p.msgId);
-
-      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
-
-      return interaction.reply({ content: "🕵️ Infiltrado definido!", ephemeral: true });
+      return i.editReply("✔ Atualizado");
     }
 
   } catch (err) {

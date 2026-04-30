@@ -50,8 +50,8 @@ function gerarEmbed(id, data) {
   return new EmbedBuilder()
     .setTitle(`🔍 INVESTIGAÇÃO #${id}`)
     .setColor("#f1c40f")
-    .setDescription(`
-👮 Criado por: <@${data.criador}>
+    .setDescription(
+`👮 Criado por: <@${data.criador}>
 
 👤 ${data.solicitante_nome} | ID: ${data.solicitante_id}
 🎯 ${data.alvo}
@@ -60,14 +60,14 @@ function gerarEmbed(id, data) {
 📎 ${data.provas}
 
 🕵️ Infiltrado: ${
-      data.infiltrado
-        ? `${data.infiltrado.nome} (${data.infiltrado.passaporte})`
-        : "Não definido"
-    }
+data.infiltrado
+  ? `${data.infiltrado.nome} (${data.infiltrado.passaporte})`
+  : "Não definido"
+}
 
 📊 Status: ${data.status}
-⏱️ Tempo: ${formatTempo(Date.now() - data.inicio)}
-`);
+⏱️ Tempo: ${formatTempo(Date.now() - data.inicio)}`
+    );
 }
 
 /* ================= COMANDOS ================= */
@@ -95,8 +95,8 @@ function painel() {
       new EmbedBuilder()
         .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
         .setColor("#d4af37")
-        .setDescription(`
-🏛️ SISTEMA JUDICIAL RP
+        .setDescription(
+`🏛️ SISTEMA JUDICIAL RP
 
 👨‍⚖️ Nenhuma investigação sem autorização.
 
@@ -105,8 +105,8 @@ function painel() {
 • ID
 • Alvo
 • Motivo
-• Provas
-        `)
+• Provas`
+        )
     ],
     components: [
       new ActionRowBuilder().addComponents(
@@ -122,7 +122,7 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("ready", () => {
-  console.log("🚨 Sistema Investigação RP ONLINE");
+  console.log("🚨 BOT INVESTIGAÇÃO ONLINE");
 });
 
 /* ================= INTERAÇÕES ================= */
@@ -150,46 +150,32 @@ client.on("interactionCreate", async (interaction) => {
         .setCustomId(`form_${tipo}`)
         .setTitle("📂 Investigação");
 
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("solicitante_nome")
-            .setLabel("Nome do Solicitante")
-            .setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("solicitante_id")
-            .setLabel("ID do Solicitante")
-            .setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("alvo")
-            .setLabel("Alvo")
-            .setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("motivo")
-            .setLabel("Motivo")
-            .setStyle(TextInputStyle.Paragraph)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId("provas")
-            .setLabel("Provas")
-            .setStyle(TextInputStyle.Short)
-        )
-      );
+      const inputs = [
+        ["solicitante_nome", "Nome do Solicitante"],
+        ["solicitante_id", "ID do Solicitante"],
+        ["alvo", "Alvo"],
+        ["motivo", "Motivo"],
+        ["provas", "Provas"]
+      ];
+
+      inputs.forEach(([id, label], i) => {
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId(id)
+              .setLabel(label)
+              .setStyle(i === 3 ? TextInputStyle.Paragraph : TextInputStyle.Short)
+          )
+        );
+      });
 
       return interaction.showModal(modal);
     }
 
-    /* CRIAR INVESTIGAÇÃO */
+    /* CRIAR */
     if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
-      const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
+      const tipo = interaction.customId.split("_")[1];
       const id = String(++contador).padStart(4, "0");
 
       const data = {

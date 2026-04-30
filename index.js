@@ -265,7 +265,21 @@ client.on("interactionCreate", async (i) => {
 
       const juiz = `<@${i.user.id}>`;
 
-      /* ENCERRAR (TRAVA TOTAL + LOG CORRIGIDO) */
+      let statusMsg = null;
+
+      /* APROVAR */
+      if (i.customId === "aprovar") {
+        p.status = "Em andamento";
+        statusMsg = `✔ INVESTIGAÇÃO APROVADA pelo Juiz ${juiz}`;
+      }
+
+      /* NEGAR */
+      if (i.customId === "negar") {
+        p.status = "Negado";
+        statusMsg = `❌ INVESTIGAÇÃO NEGADA pelo Juiz ${juiz}`;
+      }
+
+      /* ENCERRAR + TRAVAR */
       if (i.customId === "encerrar") {
         p.status = "Encerrado";
 
@@ -282,7 +296,7 @@ client.on("interactionCreate", async (i) => {
           }
         ]);
 
-        await i.channel.send(`🔒 Encerrado pelo juiz ${juiz}\n🔐 Canal totalmente bloqueado.`);
+        statusMsg = `🔒 INVESTIGAÇÃO ENCERRADA pelo Juiz ${juiz}`;
 
         await enviarLog(
           i.guild,
@@ -290,18 +304,26 @@ client.on("interactionCreate", async (i) => {
         );
 
         processos.delete(i.channel.id);
-
-        return i.reply({ content: "✔ Encerrado e trancado.", ephemeral: true });
       }
 
-      if (i.customId === "aprovar") {
-        p.status = "Em andamento";
-        await i.channel.send(`✔ Aprovado por ${juiz}`);
-      }
+      /* MENSAGEM DO JUIZ + BOTÕES */
+      if (statusMsg) {
+        await i.channel.send({
+          content: statusMsg,
+          components: [
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId("ver_processo")
+                .setLabel("📄 Ver Processo")
+                .setStyle(ButtonStyle.Secondary),
 
-      if (i.customId === "negar") {
-        p.status = "Negado";
-        await i.channel.send(`❌ Negado por ${juiz}`);
+              new ButtonBuilder()
+                .setCustomId("atualizar_status")
+                .setLabel("📊 Atualizar Status")
+                .setStyle(ButtonStyle.Primary)
+            )
+          ]
+        });
       }
 
       const msg = await i.channel.messages.fetch(p.msgId);

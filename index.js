@@ -26,10 +26,10 @@ const CARGO_JUIZ = "1497405730414661642";
 const POLICIA_CIVIL = "1498747886165426246";
 const POLICIA_FEDERAL = "1498747892465270824";
 
-/* ====== CATEGORIAS / LOGS (ADICIONADO) ====== */
+/* ===== CATEGORIAS + LOGS ===== */
 
 const CATEGORIA_CIVIL = "1499245923354808380";
-const CATEGORIA_FEDERAL = "1499345603723792476";
+const CATEGORIA_FEDERAL = "1499391240654032976";
 const CANAL_LOGS = "1499246091437342771";
 
 /* ================= CLIENT ================= */
@@ -94,7 +94,7 @@ async function registerCommands() {
   );
 }
 
-/* ================= PAINEL ORIGINAL ================= */
+/* ================= PAINEL ================= */
 
 function painel() {
   return {
@@ -176,10 +176,14 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
+    /* ================= CRIAR INVESTIGAÇÃO ================= */
+
     if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
       const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
       const id = String(++contador).padStart(4, "0");
+
+      const categoria = tipo === "civil" ? CATEGORIA_CIVIL : CATEGORIA_FEDERAL;
 
       const data = {
         criador: interaction.user.id,
@@ -195,7 +199,8 @@ client.on("interactionCreate", async (interaction) => {
 
       const canal = await interaction.guild.channels.create({
         name: `🔍-${tipo}-${id}-${interaction.user.username}`,
-        type: ChannelType.GuildText
+        type: ChannelType.GuildText,
+        parent: categoria
       });
 
       const msg = await canal.send({ embeds: [gerarEmbed(id, data)] });
@@ -211,8 +216,13 @@ client.on("interactionCreate", async (interaction) => {
 
       await canal.send({ components: [row] });
 
-      return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
+      return interaction.reply({
+        content: `✔ Investigação criada: ${canal}`,
+        ephemeral: true
+      });
     }
+
+    /* ================= BOTÕES ================= */
 
     if (interaction.isButton()) {
 
@@ -224,26 +234,6 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       const juiz = `<@${interaction.user.id}>`;
-
-      if (interaction.customId.startsWith("infiltrado_")) {
-
-        const canalId = interaction.customId.split("_")[1];
-
-        const modal = new ModalBuilder()
-          .setCustomId(`set_infiltrado_${canalId}`)
-          .setTitle("Definir Infiltrado");
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
-          )
-        );
-
-        return interaction.showModal(modal);
-      }
 
       if (interaction.customId === "aprovar") {
         p.status = "Em andamento";
@@ -276,7 +266,10 @@ client.on("interactionCreate", async (interaction) => {
 
         processos.delete(interaction.channel.id);
 
-        return interaction.reply({ content: "✔ Investigação encerrada.", ephemeral: true });
+        return interaction.reply({
+          content: "✔ Investigação encerrada.",
+          ephemeral: true
+        });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
@@ -284,6 +277,8 @@ client.on("interactionCreate", async (interaction) => {
 
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
+
+    /* ================= INFILTRADO ================= */
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
 

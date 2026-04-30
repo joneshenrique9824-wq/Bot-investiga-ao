@@ -71,7 +71,7 @@ function gerarEmbed(id, data) {
 `);
 }
 
-/* ================= COMANDOS ================= */
+/* ================= COMANDO ================= */
 
 async function registerCommands() {
   const commands = [
@@ -126,7 +126,7 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    /* ABRIR MODAL */
+    /* ABRIR */
     if (interaction.isButton() && interaction.customId === "abrir") {
 
       let tipo = null;
@@ -160,7 +160,7 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    /* CRIAR INVESTIGAÇÃO */
+    /* CRIAR */
     if (interaction.isModalSubmit() && interaction.customId.startsWith("form_")) {
 
       const tipo = interaction.customId.includes("civil") ? "civil" : "federal";
@@ -236,29 +236,26 @@ client.on("interactionCreate", async (interaction) => {
 
         p.status = "Encerrado";
 
+        // 🔒 LOCK TOTAL
         await interaction.channel.permissionOverwrites.set([
           {
             id: interaction.guild.roles.everyone,
             deny: [
               PermissionsBitField.Flags.SendMessages,
-              PermissionsBitField.Flags.AddReactions
-            ]
-          },
-          {
-            id: CARGO_JUIZ,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
+              PermissionsBitField.Flags.AddReactions,
+              PermissionsBitField.Flags.CreatePublicThreads,
+              PermissionsBitField.Flags.CreatePrivateThreads,
+              PermissionsBitField.Flags.SendMessagesInThreads
             ]
           }
         ]);
 
-        await interaction.channel.send("🔒 Investigação encerrada. Canal trancado.");
+        await interaction.channel.send("🔒 Investigação encerrada. Canal totalmente bloqueado.");
 
         processos.delete(interaction.channel.id);
 
         return interaction.reply({
-          content: "✔ Canal bloqueado.",
+          content: "✔ LOCK TOTAL aplicado.",
           ephemeral: true
         });
       }
@@ -269,15 +266,13 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
     }
 
-    /* SALVAR INFILTRADO */
+    /* INFILTRADO SALVAR */
     if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
 
       const canalId = interaction.customId.split("_")[2];
       const p = processos.get(canalId);
 
-      if (!p) {
-        return interaction.reply({ content: "❌ Processo não encontrado.", ephemeral: true });
-      }
+      if (!p) return;
 
       p.infiltrado = {
         nome: interaction.fields.getTextInputValue("nome"),

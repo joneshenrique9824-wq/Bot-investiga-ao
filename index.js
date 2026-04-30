@@ -26,7 +26,7 @@ const CARGO_JUIZ = "1497405730414661642";
 const POLICIA_CIVIL = "1498747886165426246";
 const POLICIA_FEDERAL = "1498747892465270824";
 
-// 🔽 COLOQUE AQUI
+// ✅ JÁ CONFIGURADO
 const CATEGORIA_CIVIL = "1499245923354808380";
 const CATEGORIA_FEDERAL = "1499345603723792476";
 const CANAL_LOGS = "1499246091437342771";
@@ -43,13 +43,9 @@ const processos = new Map();
 /* ================= LOG ================= */
 
 async function enviarLog(guild, mensagem) {
-  try {
-    const canal = guild.channels.cache.get(CANAL_LOGS);
-    if (!canal) return;
-    await canal.send(`📊 LOG:\n${mensagem}`);
-  } catch (e) {
-    console.error("Erro ao enviar log:", e);
-  }
+  const canal = guild.channels.cache.get(CANAL_LOGS);
+  if (!canal) return;
+  canal.send(`📊 LOG:\n${mensagem}`);
 }
 
 /* ================= TEMPO ================= */
@@ -117,13 +113,6 @@ function painel() {
 🏛️ SISTEMA JUDICIAL RP
 
 👨‍⚖️ Nenhuma investigação sem autorização.
-
-📌 Obrigatório:
-• Solicitante
-• ID
-• Alvo
-• Motivo
-• Provas
 `)
     ],
     components: [
@@ -140,7 +129,7 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log("🚨 Sistema Investigação RP ONLINE");
+  console.log("🚨 BOT ONLINE");
 });
 
 /* ================= INTERAÇÕES ================= */
@@ -164,23 +153,23 @@ client.on("interactionCreate", async (interaction) => {
 
       const modal = new ModalBuilder()
         .setCustomId(`form_${tipo}`)
-        .setTitle("📂 Investigação");
+        .setTitle("Investigação");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante_nome").setLabel("Nome do Solicitante").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante_nome").setLabel("Nome").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("solicitante_id").setLabel("ID do Solicitante").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("solicitante_id").setLabel("ID").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("alvo").setLabel("Pessoa / Facção").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("alvo").setLabel("Alvo").setStyle(TextInputStyle.Short)
         ),
         new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId("motivo").setLabel("Motivo").setStyle(TextInputStyle.Paragraph)
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("provas").setLabel("Provas (link)").setStyle(TextInputStyle.Short)
+          new TextInputBuilder().setCustomId("provas").setLabel("Provas").setStyle(TextInputStyle.Short)
         )
       );
 
@@ -204,39 +193,14 @@ client.on("interactionCreate", async (interaction) => {
         infiltrado: null
       };
 
-      const categoria = tipo === "civil" ? CATEGORIA_CIVIL : CATEGORIA_FEDERAL;
-
       const canal = await interaction.guild.channels.create({
-        name: `🔍-${tipo}-${id}-${interaction.user.username}`,
+        name: `🔍-${tipo}-${id}`,
         type: ChannelType.GuildText,
-        parent: categoria,
+        parent: tipo === "civil" ? CATEGORIA_CIVIL : CATEGORIA_FEDERAL,
         permissionOverwrites: [
-          {
-            id: interaction.guild.roles.everyone,
-            deny: [PermissionsBitField.Flags.ViewChannel]
-          },
-          {
-            id: CARGO_JUIZ,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages,
-              PermissionsBitField.Flags.ManageChannels
-            ]
-          },
-          {
-            id: tipo === "civil" ? POLICIA_CIVIL : POLICIA_FEDERAL,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          },
-          {
-            id: interaction.user.id,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          }
+          { id: interaction.guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+          { id: CARGO_JUIZ, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+          { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
         ]
       });
 
@@ -260,7 +224,7 @@ client.on("interactionCreate", async (interaction) => {
 🆔 ID: ${id}
 📌 Tipo: ${tipo}`);
 
-      return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
+      return interaction.reply({ content: "✔ Criado!", ephemeral: true });
     }
 
     if (interaction.isButton()) {
@@ -274,47 +238,71 @@ client.on("interactionCreate", async (interaction) => {
 
       const juiz = `<@${interaction.user.id}>`;
 
+      if (interaction.customId.startsWith("infiltrado_")) {
+        const modal = new ModalBuilder()
+          .setCustomId(`set_infiltrado_${interaction.channel.id}`)
+          .setTitle("Infiltrado");
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
       if (interaction.customId === "aprovar") {
         p.status = "Em andamento";
-        await interaction.channel.send(`✔ Aprovado por ${juiz}`);
-
+        await interaction.channel.send(`✔ Investigação APROVADA pelo juiz ${juiz}`);
         await enviarLog(interaction.guild, `✔ Aprovado por ${juiz} em ${interaction.channel}`);
       }
 
       if (interaction.customId === "negar") {
         p.status = "Negado";
-        await interaction.channel.send(`❌ Negado por ${juiz}`);
-
+        await interaction.channel.send(`❌ Investigação NEGADA pelo juiz ${juiz}`);
         await enviarLog(interaction.guild, `❌ Negado por ${juiz} em ${interaction.channel}`);
       }
 
       if (interaction.customId === "encerrar") {
-
         p.status = "Encerrado";
 
         await interaction.channel.permissionOverwrites.set([
-          {
-            id: interaction.guild.roles.everyone,
-            deny: [
-              PermissionsBitField.Flags.SendMessages,
-              PermissionsBitField.Flags.ViewChannel
-            ]
-          }
+          { id: interaction.guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] }
         ]);
 
-        await interaction.channel.send(`🔒 Encerrado por ${juiz}`);
-
+        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}`);
         await enviarLog(interaction.guild, `🔒 Encerrado por ${juiz} em ${interaction.channel}`);
 
         processos.delete(interaction.channel.id);
-
-        return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
-      return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
+      return interaction.reply({ content: "✔ Atualizado", ephemeral: true });
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("set_infiltrado_")) {
+
+      const canalId = interaction.customId.split("_")[2];
+      const p = processos.get(canalId);
+      if (!p) return;
+
+      p.infiltrado = {
+        nome: interaction.fields.getTextInputValue("nome"),
+        passaporte: interaction.fields.getTextInputValue("passaporte")
+      };
+
+      const canal = interaction.guild.channels.cache.get(canalId);
+      const msg = await canal.messages.fetch(p.msgId);
+
+      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
+
+      return interaction.reply({ content: "🕵️ Infiltrado definido!", ephemeral: true });
     }
 
   } catch (err) {

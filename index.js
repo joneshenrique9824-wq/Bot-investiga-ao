@@ -49,7 +49,7 @@ process.on("uncaughtException", err => {
   console.error("❌ CRASH:", err);
 });
 
-/* ================= LOG FIXO ================= */
+/* ================= LOG ================= */
 
 async function enviarLog(guild, msg) {
   try {
@@ -248,7 +248,12 @@ client.on("interactionCreate", async (i) => {
         ]
       });
 
-      await enviarLog(i.guild, `📂 Investigação ${id} criada por <@${i.user.id}>`);
+      await enviarLog(
+        i.guild,
+        `📂 Nova investigação ${id} criada por <@${i.user.id}>
+🏷️ Tipo: ${tipo.toUpperCase()}
+📍 Canal: ${canal.id}`
+      );
 
       return i.reply({ content: "✔ Investigação criada!", ephemeral: true });
     }
@@ -279,7 +284,7 @@ client.on("interactionCreate", async (i) => {
         statusMsg = `❌ INVESTIGAÇÃO NEGADA pelo Juiz ${juiz}`;
       }
 
-      /* ENCERRAR + TRAVAR */
+      /* ENCERRAR */
       if (i.customId === "encerrar") {
         p.status = "Encerrado";
 
@@ -300,13 +305,14 @@ client.on("interactionCreate", async (i) => {
 
         await enviarLog(
           i.guild,
-          `🔒 INVESTIGAÇÃO ${p.id} ENCERRADA por ${juiz} no canal ${i.channel.id}`
+          `🔒 INVESTIGAÇÃO ${p.id} ENCERRADA por ${juiz} no canal ${i.channel.id}
+🕵️ Infiltrado: ${p.infiltrado ? p.infiltrado.nome : "Nenhum"}`
         );
 
         processos.delete(i.channel.id);
       }
 
-      /* MENSAGEM DO JUIZ + BOTÕES */
+      /* MENSAGEM DO JUIZ */
       if (statusMsg) {
         await i.channel.send({
           content: statusMsg,
@@ -316,7 +322,6 @@ client.on("interactionCreate", async (i) => {
                 .setCustomId("ver_processo")
                 .setLabel("📄 Ver Processo")
                 .setStyle(ButtonStyle.Secondary),
-
               new ButtonBuilder()
                 .setCustomId("atualizar_status")
                 .setLabel("📊 Atualizar Status")
@@ -330,6 +335,56 @@ client.on("interactionCreate", async (i) => {
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
       return i.reply({ content: "✔ Atualizado.", ephemeral: true });
+    }
+
+    /* INFILTRADO */
+    if (i.customId.startsWith("infiltrado_")) {
+
+      const canalId = i.customId.split("_")[1];
+      const p = processos.get(canalId);
+
+      if (!p) return;
+
+      const modal = new ModalBuilder()
+        .setCustomId(`set_infiltrado_${canalId}`)
+        .setTitle("🕵️ Infiltrado");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
+        )
+      );
+
+      return i.showModal(modal);
+    }
+
+    /* SALVAR INFILTRADO */
+    if (i.isModalSubmit() && i.customId.startsWith("set_infiltrado_")) {
+
+      const canalId = i.customId.split("_")[2];
+      const p = processos.get(canalId);
+
+      if (!p) return;
+
+      p.infiltrado = {
+        nome: i.fields.getTextInputValue("nome"),
+        passaporte: i.fields.getTextInputValue("passaporte")
+      };
+
+      const canal = i.guild.channels.cache.get(canalId);
+      const msg = await canal.messages.fetch(p.msgId);
+
+      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
+
+      await enviarLog(
+        i.guild,
+        `🕵️ Infiltrado definido na investigação ${p.id}: ${p.infiltrado.nome} (${p.infiltrado.passaporte})`
+      );
+
+      return i.reply({ content: "✔ Infiltrado definido!", ephemeral: true });
     }
 
   } catch (err) {

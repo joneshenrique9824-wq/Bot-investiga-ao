@@ -156,12 +156,10 @@ client.once("ready", () => {
 client.on("interactionCreate", async (i) => {
   try {
 
-    /* COMANDO */
     if (i.isChatInputCommand() && i.commandName === "investigacao") {
       return i.reply(painel());
     }
 
-    /* ABRIR MODAL */
     if (i.isButton() && i.customId === "abrir") {
 
       let tipo = null;
@@ -183,20 +181,18 @@ client.on("interactionCreate", async (i) => {
       ];
 
       campos.forEach(([id, label, style]) => {
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId(id)
-              .setLabel(label)
-              .setStyle(style)
-          )
-        );
+        const input = new TextInputBuilder()
+          .setCustomId(id)
+          .setLabel(label)
+          .setStyle(style)
+          .setRequired(true);
+
+        modal.addComponents(new ActionRowBuilder().addComponents(input));
       });
 
       return i.showModal(modal);
     }
 
-    /* CRIAR */
     if (i.isModalSubmit() && i.customId.startsWith("form_")) {
 
       const tipo = i.customId.split("_")[1];
@@ -248,17 +244,11 @@ client.on("interactionCreate", async (i) => {
         ]
       });
 
-      await enviarLog(
-        i.guild,
-        `📂 Nova investigação ${id} criada por <@${i.user.id}>
-🏷️ Tipo: ${tipo.toUpperCase()}
-📍 Canal: ${canal.id}`
-      );
+      await enviarLog(i.guild, `📂 Nova investigação ${id} criada`);
 
       return i.reply({ content: "✔ Investigação criada!", ephemeral: true });
     }
 
-    /* BOTÕES */
     if (i.isButton()) {
 
       const p = processos.get(i.channel.id);
@@ -269,122 +259,40 @@ client.on("interactionCreate", async (i) => {
       }
 
       const juiz = `<@${i.user.id}>`;
-
       let statusMsg = null;
 
-      /* APROVAR */
       if (i.customId === "aprovar") {
         p.status = "Em andamento";
-        statusMsg = `✔ INVESTIGAÇÃO APROVADA pelo Juiz ${juiz}`;
+        statusMsg = `✔ APROVADA pelo Juiz ${juiz}`;
       }
 
-      /* NEGAR */
       if (i.customId === "negar") {
         p.status = "Negado";
-        statusMsg = `❌ INVESTIGAÇÃO NEGADA pelo Juiz ${juiz}`;
+        statusMsg = `❌ NEGADA pelo Juiz ${juiz}`;
       }
 
-      /* ENCERRAR */
       if (i.customId === "encerrar") {
         p.status = "Encerrado";
 
         await i.channel.permissionOverwrites.set([
           {
             id: i.guild.roles.everyone,
-            deny: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages,
-              PermissionsBitField.Flags.CreatePublicThreads,
-              PermissionsBitField.Flags.CreatePrivateThreads,
-              PermissionsBitField.Flags.SendMessagesInThreads
-            ]
+            deny: Object.values(PermissionsBitField.Flags)
           }
         ]);
 
-        statusMsg = `🔒 INVESTIGAÇÃO ENCERRADA pelo Juiz ${juiz}`;
-
-        await enviarLog(
-          i.guild,
-          `🔒 INVESTIGAÇÃO ${p.id} ENCERRADA por ${juiz} no canal ${i.channel.id}
-🕵️ Infiltrado: ${p.infiltrado ? p.infiltrado.nome : "Nenhum"}`
-        );
-
         processos.delete(i.channel.id);
+        statusMsg = `🔒 ENCERRADO pelo Juiz ${juiz}`;
       }
 
-      /* MENSAGEM DO JUIZ */
       if (statusMsg) {
-        await i.channel.send({
-          content: statusMsg,
-          components: [
-            new ActionRowBuilder().addComponents(
-              new ButtonBuilder()
-                .setCustomId("ver_processo")
-                .setLabel("📄 Ver Processo")
-                .setStyle(ButtonStyle.Secondary),
-              new ButtonBuilder()
-                .setCustomId("atualizar_status")
-                .setLabel("📊 Atualizar Status")
-                .setStyle(ButtonStyle.Primary)
-            )
-          ]
-        });
+        await i.channel.send({ content: statusMsg });
       }
 
       const msg = await i.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
       return i.reply({ content: "✔ Atualizado.", ephemeral: true });
-    }
-
-    /* INFILTRADO */
-    if (i.customId.startsWith("infiltrado_")) {
-
-      const canalId = i.customId.split("_")[1];
-      const p = processos.get(canalId);
-
-      if (!p) return;
-
-      const modal = new ModalBuilder()
-        .setCustomId(`set_infiltrado_${canalId}`)
-        .setTitle("🕵️ Infiltrado");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
-        )
-      );
-
-      return i.showModal(modal);
-    }
-
-    /* SALVAR INFILTRADO */
-    if (i.isModalSubmit() && i.customId.startsWith("set_infiltrado_")) {
-
-      const canalId = i.customId.split("_")[2];
-      const p = processos.get(canalId);
-
-      if (!p) return;
-
-      p.infiltrado = {
-        nome: i.fields.getTextInputValue("nome"),
-        passaporte: i.fields.getTextInputValue("passaporte")
-      };
-
-      const canal = i.guild.channels.cache.get(canalId);
-      const msg = await canal.messages.fetch(p.msgId);
-
-      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
-
-      await enviarLog(
-        i.guild,
-        `🕵️ Infiltrado definido na investigação ${p.id}: ${p.infiltrado.nome} (${p.infiltrado.passaporte})`
-      );
-
-      return i.reply({ content: "✔ Infiltrado definido!", ephemeral: true });
     }
 
   } catch (err) {

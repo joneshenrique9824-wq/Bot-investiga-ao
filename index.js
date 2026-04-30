@@ -12,8 +12,7 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ChannelType,
-  PermissionsBitField
+  ChannelType
 } from "discord.js";
 
 /* ================= CONFIG ================= */
@@ -109,6 +108,18 @@ function painel() {
       new EmbedBuilder()
         .setTitle("🔍⚖️ AUTORIZAÇÃO DE INVESTIGAÇÃO ⚖️🔍")
         .setColor("#d4af37")
+        .setDescription(`
+🏛️ SISTEMA JUDICIAL RP
+
+👨‍⚖️ Nenhuma investigação pode ser iniciada sem autorização judicial.
+
+📌 Informações obrigatórias:
+• Nome do solicitante
+• ID do solicitante
+• Alvo da investigação
+• Motivo detalhado
+• Provas (links/imagens)
+`)
     ],
     components: [
       new ActionRowBuilder().addComponents(
@@ -124,7 +135,7 @@ function painel() {
 /* ================= READY ================= */
 
 client.once("clientReady", () => {
-  console.log("🚨 Sistema ON");
+  console.log("🚨 Sistema Investigação RP ONLINE");
 });
 
 /* ================= INTERAÇÕES ================= */
@@ -148,7 +159,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const modal = new ModalBuilder()
         .setCustomId(`form_${tipo}`)
-        .setTitle("Investigação");
+        .setTitle("📂 Investigação");
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
@@ -194,7 +205,7 @@ client.on("interactionCreate", async (interaction) => {
       });
 
       const canal = await interaction.guild.channels.create({
-        name: `🔍-${id}`,
+        name: `🔍-${tipo}-${id}`,
         type: ChannelType.GuildText,
         parent: categoria.id
       });
@@ -212,7 +223,7 @@ client.on("interactionCreate", async (interaction) => {
 
       await canal.send({ components: [row] });
 
-      return interaction.reply({ content: `✔ Criado: ${canal}`, ephemeral: true });
+      return interaction.reply({ content: `✔ Investigação criada: ${canal}`, ephemeral: true });
     }
 
     if (interaction.isButton()) {
@@ -236,13 +247,30 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.channel.send(`❌ Negado pelo juiz ${juiz}`);
       }
 
+      if (interaction.customId === "infiltrado") {
+        const modal = new ModalBuilder()
+          .setCustomId("set_infiltrado")
+          .setTitle("🕵️ Infiltrado");
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("nome").setLabel("Nome").setStyle(TextInputStyle.Short)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("passaporte").setLabel("Passaporte").setStyle(TextInputStyle.Short)
+          )
+        );
+
+        return interaction.showModal(modal);
+      }
+
       if (interaction.customId === "encerrar") {
 
         p.status = "Encerrado";
 
         await lockChannel(interaction.channel);
 
-        await interaction.channel.send(`🔒 Encerrado pelo juiz ${juiz}`);
+        await interaction.channel.send(`🔒 Investigação encerrada pelo juiz ${juiz}`);
 
         let logs = await interaction.guild.channels.create({
           name: CAT_LOGS,
@@ -255,17 +283,33 @@ client.on("interactionCreate", async (interaction) => {
           parent: logs.id
         });
 
-        await log.send(`Investigação ${p.id} encerrada por ${juiz}`);
+        await log.send(`📁 Investigação ${p.id} encerrada por ${juiz}`);
 
         processos.delete(interaction.channel.id);
 
-        return interaction.reply({ content: "✔ Encerrado.", ephemeral: true });
+        return interaction.reply({ content: "✔ Encerrado e travado.", ephemeral: true });
       }
 
       const msg = await interaction.channel.messages.fetch(p.msgId);
       await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
 
       return interaction.reply({ content: "✔ Atualizado.", ephemeral: true });
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === "set_infiltrado") {
+
+      const p = processos.get(interaction.channel.id);
+      if (!p) return;
+
+      p.infiltrado = {
+        nome: interaction.fields.getTextInputValue("nome"),
+        passaporte: interaction.fields.getTextInputValue("passaporte")
+      };
+
+      const msg = await interaction.channel.messages.fetch(p.msgId);
+      await msg.edit({ embeds: [gerarEmbed(p.id, p)] });
+
+      return interaction.reply({ content: "✔ Infiltrado definido.", ephemeral: true });
     }
 
   } catch (err) {
